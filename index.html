@@ -12,7 +12,7 @@
 <style>
 :root{
   --bg:#0f1720; --panel:#0b1220; --text:#e6eef6; --muted:#9fb0c8;
-  --accent:#16a34a; --danger:#ef4444; --safe:#166534; /* dark green for safe */
+  --accent:#16a34a; --danger:#ef4444; --safe:#165f2b; /* dark green */
   --safe-light:#9ae6b4;
 }
 *{box-sizing:border-box}
@@ -75,6 +75,10 @@ th{ color:var(--muted); font-weight:700 }
 .urgent{ background:#f97316;color:#042; padding:4px 8px;border-radius:8px }
 
 @media (max-width:760px){ #leftPanel{ width:92%; left:4% } #adminDrawer{ width:92% } }
+
+/* modal panel generic */
+.modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:2600; background:rgba(0,0,0,0.5) }
+.panel{ width:720px; max-height:86vh; overflow:auto; background:var(--panel); padding:16px; border-radius:12px; color:var(--text) }
 </style>
 </head>
 <body>
@@ -110,8 +114,8 @@ th{ color:var(--muted); font-weight:700 }
 
   <div id="legend">
     <div style="margin-bottom:6px"><strong>Legend</strong></div>
-    <div style="display:flex;gap:8px;align-items:center"><div style="width:18px;height:10px;background:var(--danger)"></div><div class="small">Flooded road</div></div>
-    <div style="display:flex;gap:8px;align-items:center"><div style="width:18px;height:10px;background:var(--safe)"></div><div class="small">Safe alternate</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div style="width:18px;height:10px;background:var(--danger)"></div><div class="small">Flooded road (red dotted)</div></div>
+    <div style="display:flex;gap:8px;align-items:center"><div style="width:18px;height:10px;background:var(--safe)"></div><div class="small">Safe alternate (dark green)</div></div>
   </div>
 
   <div id="map"></div>
@@ -185,9 +189,9 @@ th{ color:var(--muted); font-weight:700 }
     </div>
   </div>
 
-  <!-- Report modal (small) -->
-  <div id="reportModal" class="modal" style="display:none">
-    <div class="panel" style="width:520px">
+  <!-- Report modal -->
+  <div id="reportModal" class="modal">
+    <div class="panel">
       <h3 style="margin-top:0">Report Flooded Road</h3>
       <p class="small">Pick points on map along the flooded stretch (2+ points). Click <b>Finish Report</b> to submit (admin will review).</p>
       <label class="small">Notes (optional)</label>
@@ -223,7 +227,7 @@ async function putItem(store, obj){ const db = await openDB(); return new Promis
 async function addItem(store, obj){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.add(obj); r.onsuccess = ()=> res(r.result); r.onerror = ()=> rej(r.error); }); }
 async function delItem(store, key){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.delete(key); r.onsuccess = ()=> res(); r.onerror = ()=> rej(r.error); }); }
 
-/* ================== Utilities ================== */
+/* ================== Utils ================== */
 function genId(){ return 'id'+Math.random().toString(36).slice(2,9); }
 function nowStr(ts){ return new Date(ts).toLocaleString(); }
 async function recordActivity(text){
@@ -235,17 +239,17 @@ async function recordActivity(text){
   renderActivity();
 }
 
-/* ================== MAP INIT & Icons ================== */
+/* ================== MAP INIT & ICONS ================== */
 const bounds = L.latLngBounds([8.3,76.7],[8.7,77.2]);
 const map = L.map('map',{minZoom:11,maxZoom:18,maxBounds:bounds}).setView([8.5241,76.9366],13);
 const base = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 if(OWM_KEY) L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.55}).addTo(map);
 
-/* icon markers for start/end */
+/* start/end icons */
 const startIcon = L.divIcon({ className: 'start-icon', html: `<div style="background:#2563eb;border-radius:50%;width:18px;height:18px;border:3px solid white"></div>`, iconSize:[24,24], iconAnchor:[12,24]});
 const endIcon = L.divIcon({ className: 'end-icon', html: `<div style="background:#ef4444;border-radius:50%;width:18px;height:18px;border:3px solid white"></div>`, iconSize:[24,24], iconAnchor:[12,24]});
 
-/* ================== Suggestion UI (Nominatim) ================== */
+/* ================== SUGGEST (Nominatim) ================== */
 async function nominatim(q){
   if(!q) return [];
   const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&viewbox=${VIEWBOX}&bounded=1`;
@@ -287,7 +291,7 @@ async function updateWeather(lat, lon){
   }catch(e){ console.warn('weather failed', e); }
 }
 
-/* ================== Roads storage & render ================== */
+/* ================== ROADS storage & render ================== */
 let roadsCache = [], roadLayers = {};
 async function loadRoads(){
   roadsCache = await getAll('roads') || [];
@@ -316,13 +320,13 @@ async function renderRoadsList(){
   });
 }
 
-/* ================== REPORT FLOW ================== */
+/* ================== REPORT FLOW (working) ================== */
 let reportPickMode=false, reportDrawPts=[], reportPreview=null, lastSubmittedId=null, undoTimer=null;
-document.getElementById('reportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='block'; });
+document.getElementById('reportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='flex'; });
 document.getElementById('closeReportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='none'; });
 document.getElementById('pickRoadBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='none'; startPickMode(); });
 
-function startPickMode(){ reportPickMode=true; reportDrawPts=[]; if(reportPreview) try{ map.removeLayer(reportPreview);}catch(e){} document.getElementById('mapFinishBtn').style.display='inline-block'; alert('Tap map: add 2+ points along flooded road. When done, click Finish Report.'); }
+function startPickMode(){ reportPickMode=true; reportDrawPts=[]; if(reportPreview) try{ map.removeLayer(reportPreview);}catch(e){} document.getElementById('mapFinishBtn').style.display='inline-block'; setTimeout(()=>{ alert('Tap the map to add points along the flooded road (2+ points). When done, click Finish Report.'); }, 200); }
 
 map.on('click', function(e){
   if(reportPickMode){
@@ -331,13 +335,17 @@ map.on('click', function(e){
   }
 });
 
-/* Finish report (shows undo bar for 15s only) */
+/* Finish report */
 document.getElementById('mapFinishBtn').addEventListener('click', async ()=>{
   if(!reportPickMode){ alert('Not in pick mode'); return; }
   if(reportDrawPts.length < 2){ alert('Pick at least 2 points'); return; }
   const notes = document.getElementById('reportNotes').value.trim();
   const rep = { id: genId(), coords: reportDrawPts.slice(), text: notes || '', time: Date.now(), status:'pending', urgent:false };
-  await addItem('reports', rep);
+  try {
+    await addItem('reports', rep);
+  } catch(e) {
+    console.error('add report failed', e); alert('Report save failed (console)'); return;
+  }
   lastSubmittedId = rep.id;
   showUndoBar();
   cancelPick();
@@ -347,6 +355,7 @@ document.getElementById('mapFinishBtn').addEventListener('click', async ()=>{
 });
 
 function cancelPick(){ reportPickMode=false; reportDrawPts=[]; if(reportPreview) try{ map.removeLayer(reportPreview);}catch(e){} reportPreview=null; document.getElementById('mapFinishBtn').style.display='none'; document.getElementById('reportNotes').value=''; }
+
 function showThankYou(){ const el = document.getElementById('thankYou'); el.style.display='block'; setTimeout(()=> el.style.display='none', 1400); }
 
 function showUndoBar(){
@@ -357,7 +366,7 @@ function showUndoBar(){
   const undo = document.createElement('button'); undo.innerText='Undo (15s)'; undo.style.marginLeft='8px'; undo.style.cursor='pointer';
   undo.onclick = async ()=>{
     clearTimeout(undoTimer);
-    await delItem('reports', lastSubmittedId);
+    try { await delItem('reports', lastSubmittedId); } catch(e){ console.warn('undo delete failed', e); }
     lastSubmittedId=null;
     if(bar.parentNode) bar.parentNode.removeChild(bar);
     cancelPick();
@@ -369,7 +378,8 @@ function showUndoBar(){
   undoTimer = setTimeout(()=>{ if(bar.parentNode) bar.parentNode.removeChild(bar); lastSubmittedId=null; }, 15000);
 }
 
-/* ================== Routing & flood detection ================== */
+/* ================== ROUTING & DETECTION ================== */
+/* geometry helpers */
 function pointToSegmentDistance(pt,A,B){
   const toRad = Math.PI/180;
   const R = 6371000;
@@ -399,6 +409,8 @@ function detectFloodHitsOnRoute(routeCoords){
   }
   return hits;
 }
+
+/* OSRM route helper */
 async function osrmRoute(start, dest, via=null){
   const coords = `${start[1]},${start[0]};${via ? via[1]+','+via[0]+';' : ''}${dest[1]},${dest[0]}`;
   const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
@@ -410,10 +422,10 @@ async function osrmRoute(start, dest, via=null){
   return { coords: coordsLatLng, distance: j.routes[0].distance, duration: j.routes[0].duration };
 }
 
-/* routing UI state */
+/* UI routing state */
 let mainRouteLayer = null, altRouteLayer = null, floodedSegments = [], startMarker=null, endMarker=null;
 
-/* place start/end markers helper */
+/* place start/end markers */
 function setStartEndMarkers(startCoords, endCoords){
   if(startMarker) try{ map.removeLayer(startMarker);}catch(e){}
   if(endMarker) try{ map.removeLayer(endMarker);}catch(e){}
@@ -421,7 +433,7 @@ function setStartEndMarkers(startCoords, endCoords){
   endMarker = L.marker(endCoords, {icon:endIcon}).addTo(map).bindPopup('Destination');
 }
 
-/* GET ROUTE: show main, detect floods, and AUTO-APPLY safe alternate (divert) */
+/* GET ROUTE (shows main route, marks flooded segments but DOES NOT divert) */
 document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
   try{
     // cleanup
@@ -438,12 +450,10 @@ document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
     const dest = await resolvePlace(eVal, document.getElementById('endInput'));
     if(!start || !dest){ alert('Could not resolve places'); document.getElementById('routeInfo').innerText=''; return; }
 
-    // set start/end icons
     setStartEndMarkers(start, dest);
 
-    // main route
     const main = await osrmRoute(start, dest);
-    mainRouteLayer = L.polyline(main.coords, { color:'#1e40af', weight:6, opacity:0.9 }).addTo(map);
+    mainRouteLayer = L.polyline(main.coords, { color:'#1e40af', weight:6, opacity:0.95 }).addTo(map);
     map.fitBounds(mainRouteLayer.getBounds(), { padding:[60,60] });
     document.getElementById('routeInfo').innerText = `Route: ${(main.distance/1000).toFixed(2)} km · ${(main.duration/60).toFixed(1)} min`;
 
@@ -451,57 +461,62 @@ document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
     roadsCache = await getAll('roads') || [];
     const hits = detectFloodHitsOnRoute(main.coords);
     if(hits.length > 0){
+      // mark flooded segments red dotted (but DO NOT auto-divert)
       hits.forEach(h=>{
         const l = L.polyline(h.seg, { color:'var(--danger)', weight:6, dashArray:'10,8' }).addTo(map);
         floodedSegments.push(l);
       });
-      document.getElementById('routeInfo').innerText += ' · Flood detected on route — diverting to safe alternate';
-      // auto-generate safe alternate and apply (divert)
-      await generateSafeAlternateAndApply(main.coords, start, dest);
+      document.getElementById('routeInfo').innerText += ' · Flood detected on route';
+      // show safe-route button
       document.getElementById('findSafeBtn').style.display='inline-block';
-      document.getElementById('findSafeBtn').onclick = ()=> generateSafeAlternateAndApply(main.coords, start, dest);
+      // clicking Find Safe will compute alternate and avoid the flood
+      document.getElementById('findSafeBtn').onclick = ()=> generateSafeAlternate(main.coords, start, dest);
     } else {
       document.getElementById('routeInfo').innerText += ' · No flooded roads on route';
     }
   }catch(e){ console.error(e); alert('Route error: '+(e.message||e)); document.getElementById('routeInfo').innerText=''; }
 });
 
-/* GENERATE safe alternate and automatically apply (divert) */
-async function generateSafeAlternateAndApply(mainCoords, start, dest){
+/* FIND FAST & SAFE ROUTE: computes alternate avoiding flooded segments and draws it (dark green) */
+async function generateSafeAlternate(mainCoords, start, dest){
   try{
     document.getElementById('routeInfo').innerText = 'Generating safe alternate...';
-    if(!mainCoords || mainCoords.length===0) return alert('No main route');
+    if(!mainCoords || mainCoords.length===0) return alert('No main route to base on');
     const hits = detectFloodHitsOnRoute(mainCoords);
     if(hits.length===0) return alert('No flooded segments to avoid');
 
-    // compute mid of first hit
+    // pick first hit, compute offset-based via points and pick best alternative that reduces flood hits
     const hit = hits[0];
-    // find approximate mid index on mainCoords that is closest to a hit point
-    let mid = hit.seg[Math.floor(hit.seg.length/2)];
-    // offset candidates left/right
-    const offsetMeters = 250; // detour distance
+    const mid = hit.seg[Math.floor(hit.seg.length/2)];
+    const offsetMeters = 300;
     const offDeg = offsetMeters / 111000;
-    const left = [ mid[0] + offDeg, mid[1] - offDeg ];
-    const right = [ mid[0] - offDeg, mid[1] + offDeg ];
-    const candidates = [left, right];
+    const candidates = [
+      [ mid[0] + offDeg, mid[1] - offDeg ],
+      [ mid[0] - offDeg, mid[1] + offDeg ],
+      [ mid[0] + offDeg, mid[1] + offDeg ],
+      [ mid[0] - offDeg, mid[1] - offDeg ]
+    ];
 
     let best = null;
     for(const via of candidates){
       try{
         const res = await osrmRoute(start, dest, via);
         const ins = detectFloodHitsOnRoute(res.coords);
+        // prefer routes with zero flood intersections
         if(ins.length === 0){ best = res; break; }
         if(!best || res.duration < best.duration) best = res;
-      }catch(err){ console.warn('via failed', err); }
+      }catch(err){ console.warn('candidate failed', err); }
     }
     if(!best) return alert('No alternate route found');
 
-    // show alternate, fade original main (so user sees diversion)
+    // show alternate route in dark green and keep original main route slightly faded
     if(mainRouteLayer) mainRouteLayer.setStyle({ color:'#1e40af', weight:4, opacity:0.5 });
     if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
     altRouteLayer = L.polyline(best.coords, { color: 'var(--safe)', weight:6 }).addTo(map);
     map.fitBounds(altRouteLayer.getBounds(), { padding:[60,60] });
     document.getElementById('routeInfo').innerText = `Safe alternate: ${(best.distance/1000).toFixed(2)} km · ${(best.duration/60).toFixed(1)} min`;
+
+    // ensure flooded segments remain visible/red dotted on the map (they were added during Get Route)
   }catch(e){ console.error(e); alert('Safe alternate error: '+(e.message||e)); }
 }
 
@@ -518,7 +533,7 @@ async function resolvePlace(text, inputEl){
 }
 document.getElementById('useCurrentBtn').addEventListener('click', ()=>{ if(userPos){ document.getElementById('startInput').value='Current location'; document.getElementById('startInput')._latlng = userPos; } else alert('Allow location'); });
 
-/* ================== ADMIN DRAWER wiring & logic ================== */
+/* ================== ADMIN drawer logic ================== */
 document.getElementById('toggleAdminBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.toggle('open'); });
 document.getElementById('closeDrawerBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.remove('open'); });
 document.getElementById('openLoginBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.add('open'); document.getElementById('adminLoginBox').scrollIntoView(); });
@@ -598,7 +613,7 @@ async function refreshPendingCount(){ const reps = await getAll('reports') || []
 /* render activity */
 async function renderActivity(){ const meta = await getAll('meta') || []; const a = (meta.find(x=>x.k==='activityLog') || {k:'activityLog', v:[]}).v || []; const el = document.getElementById('activityList'); el.innerHTML=''; a.slice(0,200).forEach(it=>{ const d = document.createElement('div'); d.style.padding='6px'; d.style.borderBottom='1px solid rgba(255,255,255,0.03)'; d.innerHTML = `<div style="font-size:12px;color:var(--muted)">${nowStr(it.time)}</div><div>${it.text}</div>`; el.appendChild(d); }); }
 
-/* ================== init & seed ================== */
+/* ================== INIT & SEED ================== */
 (async function init(){
   const meta = await getAll('meta') || [];
   if(!meta.find(x=>x.k==='activityLog')) await putItem('meta', {k:'activityLog', v:[]});
