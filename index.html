@@ -1,295 +1,179 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Flood Alert — Trivandrum (Enhanced)</title>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Flood Alert — Trivandrum</title>
 
-  <!-- Leaflet core -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<!-- Leaflet CSS & JS -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 
-  <!-- Leaflet plugins -->
-  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
-  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
+<!-- Leaflet.AntPath plugin for animated routes -->
+<script src="https://unpkg.com/leaflet-ant-path/dist/leaflet-ant-path.min.js"></script>
 
-  <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
-  <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
-
-  <script src="https://unpkg.com/leaflet-ant-path@1.6.0/dist/leaflet-ant-path.min.js"></script>
-  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
-
-  <style>
-    :root{
-      --card-bg: rgba(255,255,255,0.98);
-      --accent-a: #06b6d4;
-      --accent-b: #3b82f6;
-      --danger: #ef4444;
-      --glass: rgba(255,255,255,0.6);
-      --shadow: 0 8px 30px rgba(11,22,39,0.12);
-    }
-    html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#e6f7fb 0%, #f7fbff 100%)}
-    #map{height:100vh;width:100vw}
-
-    /* Controls card */
-    .controls{position:absolute;z-index:1400;left:14px;top:14px;width:360px;padding:16px;border-radius:14px;background:var(--card-bg);box-shadow:var(--shadow);backdrop-filter: blur(6px);transition: transform .25s ease, box-shadow .25s ease}
-    .controls:hover{transform: translateY(-6px)}
-    .controls h2{margin:0 0 8px;font-size:16px}
-    .row{display:flex;gap:8px}
-    .field{flex:1}
-    input[type="search"],button{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(10,10,10,0.06);font-size:14px}
-    .muted{font-size:13px;color:#475569;margin-top:8px}
-    .infoBox{margin-top:10px;padding:10px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.9),rgba(255,255,255,0.85));font-size:13px}
-    .small{font-size:12px;color:#334155;margin-top:8px}
-
-    /* suggestions dropdown */
-    .suggestions{position:relative}
-    .suggestions-list{position:absolute;left:0;right:0;background:white;border-radius:8px;margin-top:6px;box-shadow:0 6px 20px rgba(2,6,23,0.12);max-height:220px;overflow:auto;z-index:1600;padding:6px}
-    .suggestion{padding:8px;border-radius:6px;cursor:pointer}
-    .suggestion:hover,.suggestion.active{background:linear-gradient(90deg,var(--accent-b),var(--accent-a));color:white}
-    .small-badge{display:inline-block;padding:6px 8px;border-radius:999px;background:linear-gradient(90deg,var(--accent-a),var(--accent-b));color:white;font-weight:600;margin-right:8px}
-
-    /* legend */
-    .legend{position:absolute;right:14px;top:14px;z-index:1400;padding:12px;border-radius:12px;background:var(--card-bg);box-shadow:var(--shadow);width:220px}
-    .legend .item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
-    .dot{width:14px;height:14px;border-radius:50%}
-    .line-sample{height:8px;border-radius:6px;width:42px}
-
-    /* popup animation */
-    .leaflet-popup-content-wrapper{animation:pop .18s ease}
-    @keyframes pop{from{transform:scale(.96);opacity:0}to{transform:scale(1);opacity:1}}
-
-    @media (max-width:420px){.controls{width:92%;left:4%;top:8px;padding:12px}}
-  </style>
+<!-- Styling -->
+<style>
+body {
+  margin: 0;
+  font-family: Arial, sans-serif;
+}
+#map {
+  height: 100vh;
+  width: 100%;
+}
+.controls {
+  position: absolute;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.3);
+}
+.controls input {
+  padding: 6px;
+  margin: 2px;
+  width: 200px;
+}
+.controls button {
+  padding: 6px 10px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+}
+.suggestions {
+  background: white;
+  border: 1px solid #ccc;
+  max-height: 120px;
+  overflow-y: auto;
+  position: absolute;
+  width: 200px;
+  z-index: 2000;
+}
+.suggestions div {
+  padding: 6px;
+  cursor: pointer;
+}
+.suggestions div:hover {
+  background: #eee;
+}
+</style>
 </head>
 <body>
 
-<div class="controls" id="controls">
-  <div style="display:flex;gap:10px;align-items:center">
-    <div class="small-badge">FL</div>
-    <div>
-      <div style="font-weight:700">Flood-aware Navigation</div>
-      <div style="font-size:12px;color:#475569">Trivandrum — safe routes & alerts</div>
-    </div>
-  </div>
-
-  <div style="height:10px"></div>
-  <div class="row">
-    <div class="field suggestions">
-      <label for="startSearch">Start</label>
-      <input id="startSearch" type="search" placeholder="Current location or type a place" autocomplete="off" />
-      <div id="startSug" class="suggestions-list" style="display:none"></div>
-    </div>
-    <div style="width:44px;display:flex;align-items:flex-end">
-      <button id="useCurrent" title="Use current location">📍</button>
-    </div>
-  </div>
-
-  <div style="margin-top:8px" class="suggestions">
-    <label for="endSearch">Destination</label>
-    <input id="endSearch" type="search" placeholder="Where to?" autocomplete="off" />
-    <div id="endSug" class="suggestions-list" style="display:none"></div>
-  </div>
-
-  <div style="display:flex;gap:8px;margin-top:10px">
-    <button id="goBtn">Get Route</button>
-    <button id="clearBtn" style="background:transparent;border:1px solid rgba(0,0,0,0.06)">Clear</button>
-  </div>
-
-  <div class="infoBox" id="info">No route yet — type start and destination.</div>
-  <div class="small">Weather: <span id="weather">—</span></div>
-  <div class="muted">Tip: Click suggestion to pick. Press Get Route to compute. Map locked to the Trivandrum area.</div>
-</div>
-
-<div class="legend" id="legend">
-  <div style="font-weight:600;margin-bottom:8px">Map Legend</div>
-  <div class="item"><div class="dot" style="background:linear-gradient(90deg,var(--accent-a),#34d399)"></div><div>Live user location</div></div>
-  <div class="item"><div class="line-sample" style="background:linear-gradient(90deg,var(--accent-b),var(--accent-a))"></div><div>Primary route</div></div>
-  <div class="item"><div class="line-sample" style="background:linear-gradient(90deg,#10b981,#34d399);height:8px;border:2px dashed rgba(0,0,0,0.06)"></div><div>Alternate route</div></div>
-  <div class="item"><div class="dot" style="background:var(--danger)"></div><div>Flooded segment</div></div>
+<div class="controls">
+  <input id="start" placeholder="Start location"/>
+  <div id="start-suggestions" class="suggestions"></div>
+  <input id="end" placeholder="Destination"/>
+  <div id="end-suggestions" class="suggestions"></div>
+  <button id="getRoute">Get Route</button>
 </div>
 
 <div id="map"></div>
 
 <script>
-  // ---------------------------
-  // CONFIG & KEYS
-  // ---------------------------
-  const OPENROUTESERVICE_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImViOTBkMjI4ZGUyNDRkMzg5MGU1ZWVkNjU0MDU0Y2MzIiwiaCI6Im11cm11cjY0In0=';
-  const OPENWEATHER_KEY = 'ce70bf8bdb2bbf3ad192ee196735d6cf';
+// === API Keys ===
+const ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImViOTBkMjI4ZGUyNDRkMzg5MGU1ZWVkNjU0MDU0Y2MzIiwiaCI6Im11cm11cjY0In0=";
+const WEATHER_KEY = "ce70bf8bdb2bbf3ad192ee196735d6cf";
 
-  // Trivandrum bounding box
-  const trivandrumBounds = L.latLngBounds([8.30, 76.70], [8.72, 77.12]);
+// === Map Setup ===
+const map = L.map('map').setView([8.5241, 76.9366], 13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19
+}).addTo(map);
 
-  // Create map
-  const map = L.map('map', {
-    maxBounds: trivandrumBounds,
-    maxBoundsViscosity: 1.0,
-    minZoom: 11,
-    maxZoom: 17
-  }).setView([8.52, 76.94], 12.5);
+// Flood zone example polygon
+const floodZone = L.polygon([
+  [8.524, 76.93],
+  [8.526, 76.94],
+  [8.522, 76.945]
+], {color: 'red', fillOpacity: 0.4}).addTo(map).bindPopup("Flood-prone area!");
 
-  // Tiles
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OpenStreetMap contributors'}).addTo(map);
+// === Autocomplete function ===
+function setupAutocomplete(inputId, suggestionId) {
+  const input = document.getElementById(inputId);
+  const suggestionBox = document.getElementById(suggestionId);
 
-  // locate control
-  L.control.locate({keepCurrentZoomLevel:true,showPopup:false}).addTo(map);
-
-  // layers
-  let userMarker=null,userAccuracy=null,routeLayer=null,altRouteLayer=null,floodLayer=null,startDecorator=null,endMarker=null,ant=null;
-
-  const endIcon = L.divIcon({className:'end-icon',html:'<svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="10" fill="#ef4444"/><circle cx="12" cy="12" r="4" fill="#fff"/></svg>',iconSize:[22,22],iconAnchor:[11,11]});
-
-  // live location
-  function onLocationFound(lat,lng,accuracy){
-    const latlng=[lat,lng];
-    if(!userMarker){
-      userMarker=L.circleMarker(latlng,{radius:9,fillColor:varColor('--accent-a'),color:'#fff',weight:2,fillOpacity:1}).addTo(map).bindPopup('You are here');
-    } else {userMarker.setLatLng(latlng)}
-    if(!userAccuracy){userAccuracy=L.circle(latlng,{radius:Math.max(accuracy,8),color:varColor('--accent-a'),fillOpacity:0.06}).addTo(map)} else {userAccuracy.setLatLng(latlng).setRadius(Math.max(accuracy,8))}
-  }
-
-  function varColor(name){return getComputedStyle(document.documentElement).getPropertyValue(name).trim()||'#06b6d4'}
-
-  if(navigator.geolocation){
-    navigator.geolocation.getCurrentPosition(pos=>onLocationFound(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy),e=>console.warn(e),{enableHighAccuracy:true});
-    navigator.geolocation.watchPosition(pos=>onLocationFound(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy),e=>console.warn(e),{enableHighAccuracy:true,maximumAge:3000,timeout:10000});
-  }
-
-  // ------------
-  // Autocomplete (Photon)
-  // ------------
-  const startInput = document.getElementById('startSearch');
-  const endInput = document.getElementById('endSearch');
-  const startSug = document.getElementById('startSug');
-  const endSug = document.getElementById('endSug');
-  const goBtn = document.getElementById('goBtn');
-  const clearBtn = document.getElementById('clearBtn');
-  const useCurrentBtn = document.getElementById('useCurrent');
-  const infoBox = document.getElementById('info');
-  const weatherBox = document.getElementById('weather');
-
-  let startCoord=null,endCoord=null;
-
-  // debounce helper
-  function debounce(fn, wait=300){let t;return (...a)=>{clearTimeout(t);t=setTimeout(()=>fn(...a),wait)}}
-
-  async function photonSearch(q){
-    if(!q||q.length<2) return [];
-    // limit to India bbox? we'll bias to Trivandrum by viewbox
-    const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=8&lat=8.5241&lon=76.9366`;
-    const res = await fetch(url);
-    if(!res.ok) return [];
+  input.addEventListener('input', async () => {
+    const query = input.value.trim();
+    if (!query) {
+      suggestionBox.innerHTML = '';
+      return;
+    }
+    const res = await fetch(`https://photon.komoot.io/api/?q=${query}&limit=5`);
     const data = await res.json();
-    return data.features.map(f=>({name:f.properties.name || f.properties.city || f.properties.street || f.properties.osm_key,display:f.properties.osm_value?f.properties.name+", "+(f.properties.city||f.properties.state||f.properties.country):f.properties.name,lat:f.geometry.coordinates[1],lon:f.geometry.coordinates[0],raw:f}));
-  }
-
-  function showSuggestions(list,container,inputField,which){
-    container.innerHTML='';
-    if(!list || list.length===0){container.style.display='none';return}
-    list.forEach((it,idx)=>{
-      const div=document.createElement('div');div.className='suggestion';div.tabIndex=0;div.innerText=it.display||it.name||`${it.lat.toFixed(5)},${it.lon.toFixed(5)}`;
-      div.addEventListener('click',()=>{selectSuggestion(it,which)});
-      div.addEventListener('keydown',e=>{if(e.key==='Enter')selectSuggestion(it,which)});
-      container.appendChild(div);
+    suggestionBox.innerHTML = '';
+    data.features.forEach(place => {
+      const div = document.createElement('div');
+      div.textContent = place.properties.name + ', ' + (place.properties.city || '') + ', ' + place.properties.country;
+      div.addEventListener('click', () => {
+        input.value = div.textContent;
+        input.dataset.lat = place.geometry.coordinates[1];
+        input.dataset.lon = place.geometry.coordinates[0];
+        suggestionBox.innerHTML = '';
+      });
+      suggestionBox.appendChild(div);
     });
-    container.style.display='block';
+  });
+}
+
+setupAutocomplete('start', 'start-suggestions');
+setupAutocomplete('end', 'end-suggestions');
+
+// === Route Drawing ===
+document.getElementById('getRoute').addEventListener('click', async () => {
+  const start = document.getElementById('start');
+  const end = document.getElementById('end');
+  
+  if (!start.dataset.lat || !end.dataset.lat) {
+    alert("Please select from suggestions.");
+    return;
   }
 
-  function selectSuggestion(item,which){
-    if(which==='start'){startCoord=[item.lat,item.lon];startInput.value=item.display || item.name;}
-    else {endCoord=[item.lat,item.lon];endInput.value=item.display || item.name}
-    // place small marker and hide suggestions
-    L.marker([item.lat,item.lon]).addTo(map).bindPopup((which==='start'?'Start: ':'Destination: ')+ (item.display||item.name)).openPopup();
-    if(which==='start') startSug.style.display='none'; else endSug.style.display='none';
+  const coords = [
+    [parseFloat(start.dataset.lon), parseFloat(start.dataset.lat)],
+    [parseFloat(end.dataset.lon), parseFloat(end.dataset.lat)]
+  ];
+
+  try {
+    const res = await fetch("https://api.openrouteservice.org/v2/directions/driving-car", {
+      method: "POST",
+      headers: {
+        "Authorization": ORS_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ coordinates: coords })
+    });
+    const data = await res.json();
+
+    if (!data.routes) {
+      alert("Route not found!");
+      return;
+    }
+
+    const routeCoords = data.routes[0].geometry;
+    const geojson = L.geoJSON(routeCoords, { style: { color: 'blue' } });
+
+    const latlngs = geojson.getLayers()[0].getLatLngs();
+    L.antPath(latlngs, {
+      color: "blue",
+      weight: 5,
+      opacity: 0.8,
+      dashArray: [10, 20],
+      pulseColor: "#00f"
+    }).addTo(map);
+
+    map.fitBounds(geojson.getBounds());
+  } catch (err) {
+    console.error(err);
+    alert("Error fetching route");
   }
-
-  const debStart = debounce(async ()=>{const q=startInput.value.trim();if(!q){startSug.style.display='none';return}const res=await photonSearch(q);showSuggestions(res,startSug,startInput,'start')},250);
-  const debEnd = debounce(async ()=>{const q=endInput.value.trim();if(!q){endSug.style.display='none';return}const res=await photonSearch(q);showSuggestions(res,endSug,endInput,'end')},250);
-
-  startInput.addEventListener('input',debStart);
-  endInput.addEventListener('input',debEnd);
-
-  // hide suggestions when clicking outside
-  document.addEventListener('click',e=>{if(!e.target.closest('.suggestions')){startSug.style.display='none';endSug.style.display='none'}});
-
-  // use current location
-  useCurrentBtn.addEventListener('click',()=>{
-    if(userMarker){const p=userMarker.getLatLng();startCoord=[p.lat,p.lng];startInput.value='Current location';userMarker.openPopup();map.setView(p,13)} else alert('Waiting for location (allow permissions)')
-  });
-
-  clearBtn.addEventListener('click',()=>{
-    startInput.value='';endInput.value='';startCoord=null;endCoord=null;infoBox.innerHTML='Cleared.';weatherBox.innerText='—';
-    if(routeLayer){map.removeLayer(routeLayer);routeLayer=null}
-    if(altRouteLayer){map.removeLayer(altRouteLayer);altRouteLayer=null}
-    if(floodLayer){map.removeLayer(floodLayer);floodLayer=null}
-    if(startDecorator){map.removeLayer(startDecorator);startDecorator=null}
-    if(endMarker){map.removeLayer(endMarker);endMarker=null}
-    if(ant){map.removeLayer(ant);ant=null}
-  });
-
-  // ORS call
-  async function getRoute(coords){
-    const url='https://api.openrouteservice.org/v2/directions/driving-car/geojson';
-    const res = await fetch(url,{method:'POST',headers:{'Authorization':OPENROUTESERVICE_KEY,'Content-Type':'application/json'},body:JSON.stringify({coordinates:coords})});
-    if(!res.ok){const t=await res.text();throw new Error('ORS failed: '+t)}
-    const d=await res.json();return d;
-  }
-
-  // draw helpers
-  function drawRoute(coords){if(routeLayer)map.removeLayer(routeLayer);routeLayer=L.polyline(coords,{weight:7,color:varColor('--accent-b'),opacity:0.95}).addTo(map);if(ant)map.removeLayer(ant);ant=L.antPath(coords,{delay:500,weight:6,paused:false}).addTo(map);if(startDecorator)map.removeLayer(startDecorator);startDecorator=L.polylineDecorator(routeLayer,{patterns:[{offset:'0%',repeat:0,symbol:L.Symbol.arrowHead({pixelSize:18,polygon:false,pathOptions:{stroke:true, color:varColor('--accent-a'),weight:3}})}]}).addTo(map);map.fitBounds(routeLayer.getBounds(),{padding:[60,60]});}
-  function drawAlt(coords){if(altRouteLayer)map.removeLayer(altRouteLayer);altRouteLayer=L.polyline(coords,{weight:5,opacity:0.95,color:'#10b981',dashArray:'10,8'}).addTo(map)}
-  function drawFlood(seg){if(floodLayer)map.removeLayer(floodLayer);floodLayer=L.polyline(seg,{color:varColor('--danger'),weight:8,opacity:0.95,dashArray:'6,8'}).addTo(map)}
-
-  async function fetchWeather(lat,lng){try{const r=await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_KEY}&units=metric`);if(!r.ok)throw new Error('weather failed');const d=await r.json();weatherBox.innerText=`${d.weather[0].description}, ${d.main.temp}°C`}catch(e){console.warn(e);weatherBox.innerText='—'}}
-
-  // Main route flow
-  goBtn.addEventListener('click',async ()=>{
-    try{
-      // resolve start
-      if(startInput.value.trim().toLowerCase()==='current location' && userMarker){const p=userMarker.getLatLng();startCoord=[p.lat,p.lng]}
-      if(!startCoord){if(startInput.value.trim()){const res=await photonSearch(startInput.value.trim());if(res.length===0) return alert('Start not found');startCoord=[res[0].lat,res[0].lon];startInput.value=res[0].display||res[0].name}else return alert('Add a start')}
-      if(!endCoord){if(endInput.value.trim()){const res=await photonSearch(endInput.value.trim());if(res.length===0) return alert('Destination not found');endCoord=[res[0].lat,res[0].lon];endInput.value=res[0].display||res[0].name}else return alert('Add a destination')}
-
-      infoBox.innerHTML='Calculating route...';
-      const orsCoords=[[startCoord[1],startCoord[0]],[endCoord[1],endCoord[0]]];
-      const routeData = await getRoute(orsCoords);
-      const coords = routeData.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-      drawRoute(coords);
-
-      // end marker
-      if(endMarker)map.removeLayer(endMarker);endMarker=L.marker(endCoord,endIcon).addTo(map).bindPopup('Destination').openPopup();
-
-      // summary
-      const summary = routeData.features[0].properties.summary;const distanceKm=(summary.distance/1000).toFixed(2);const durationMin=(summary.duration/60).toFixed(1);const avgSpeed=((summary.distance/summary.duration)*3.6).toFixed(1);
-      infoBox.innerHTML=`<strong>Distance:</strong> ${distanceKm} km<br><strong>Duration:</strong> ${durationMin} min<br><strong>Avg speed:</strong> ${avgSpeed} km/h`;
-
-      // weather for start
-      fetchWeather(startCoord[0],startCoord[1]);
-
-      // simulate flood segment (replace when you have actual flood polygon)
-      const mid=Math.floor(coords.length/2);const floodSegment=coords.slice(Math.max(0,mid-3),Math.min(coords.length,mid+3));
-      drawFlood(floodSegment);
-
-      // build avoid polygon correctly inside ORS options
-      const polyCoords = floodSegment.map(c=>[c[1],c[0]]); if(polyCoords.length>2) polyCoords.push(polyCoords[0]);
-      try{
-        const altBody = {coordinates:[[startCoord[1],startCoord[0]],[endCoord[1],endCoord[0]]],options:{avoid_polygons:{type:'Polygon',coordinates:[polyCoords]}}};
-        const altRes = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson',{method:'POST',headers:{'Authorization':OPENROUTESERVICE_KEY,'Content-Type':'application/json'},body:JSON.stringify(altBody)});
-        if(altRes.ok){const altData=await altRes.json();const altCoords=altData.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);drawAlt(altCoords)} else {console.warn('Alt route error',await altRes.text())}
-      }catch(e){console.warn('Alt route failed',e)}
-
-    }catch(e){console.error(e);alert('Route failed: '+(e.message||e))}
-  });
-
-  // keep map inside bounds
-  map.on('moveend',()=>{if(!trivandrumBounds.contains(map.getCenter())) map.panInsideBounds(trivandrumBounds,{animate:true})});
-
-  // auto-pan to user if near edge
-  setInterval(()=>{if(userMarker){const latlng=userMarker.getLatLng();const px=map.latLngToContainerPoint(latlng);const w=map.getSize();if(px.x<80||px.x>w.x-80||px.y<80||px.y>w.y-80) map.panTo(latlng,{animate:true})}},3500);
-
-  infoBox.innerHTML='Ready — type start and destination or use 📍. Suggestions provided as you type.';
-
+});
 </script>
 
 </body>
