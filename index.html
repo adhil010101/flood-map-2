@@ -12,13 +12,14 @@
 <style>
 :root{
   --bg:#0f1720; --panel:#0b1220; --text:#e6eef6; --muted:#9fb0c8;
-  --accent:#16a34a; --danger:#ef4444; --safe:#28c76f;
+  --accent:#16a34a; --danger:#ef4444; --safe:#9ae6b4; /* light green for safe button */
+  --safe-dark:#28c76f;
 }
 *{box-sizing:border-box}
-body{margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
-#map{height:100vh;width:100%}
+body{margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
+#map{height:100%;width:100%}
 
-/* left panel */
+/* Left control panel */
 #leftPanel{
   position:absolute; left:12px; top:12px; z-index:1600; width:360px;
   background:var(--panel); padding:12px; border-radius:12px;
@@ -26,8 +27,8 @@ body{margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:v
 }
 #leftPanel h3{ margin:0 0 8px 0; font-size:16px }
 .input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:0; background:#071025; color:var(--text) }
-.btn{ padding:10px; border-radius:8px; border:0; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,0.35); background:#0ea5a9; color:#022 }
-.btn.ghost{ background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.04) }
+.btn{ padding:10px; border-radius:8px; border:0; cursor:pointer; box-shadow:0 6px 18px rgba(0,0,0,0.35); background:var(--accent); color:#022; font-weight:700 }
+.btn.ghost{ background:transparent; color:var(--text); border:1px solid rgba(255,255,255,0.04); font-weight:600 }
 .small{ font-size:12px; color:var(--muted) }
 
 /* suggestion box */
@@ -49,25 +50,32 @@ body{margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:v
 /* legend */
 #legend{ position:absolute; left:12px; bottom:12px; z-index:1200; background:var(--panel); padding:10px; border-radius:10px; color:var(--muted); font-size:13px }
 
-/* modals */
-.modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:2600; background:rgba(0,0,0,0.45) }
-.panel{ width:760px; max-height:84vh; overflow:auto; background:var(--panel); padding:16px; border-radius:12px; color:var(--text) }
-.modal.small .panel{ width:520px }
-
 /* map finish button */
 #mapFinishBtn{ position:absolute; right:16px; top:76px; z-index:2000; display:none; padding:10px 14px; border-radius:10px; background:var(--accent); color:#04311a; font-weight:700; cursor:pointer; box-shadow:0 12px 30px rgba(2,6,23,0.6) }
 
 /* thank you */
 #thankYou{ position:fixed; left:50%; top:40%; transform:translate(-50%,-50%); z-index:3000; display:none; padding:18px 24px; border-radius:12px; background:linear-gradient(90deg,#10b981,#16a34a); color:#022; font-weight:800; box-shadow:0 20px 60px rgba(2,6,23,0.5); }
 
-/* table & admin */
-table{ width:100%; border-collapse:collapse; color:var(--text) }
+/* admin side panel (right drawer) */
+#adminDrawer{
+  position:absolute; right:-420px; top:0; height:100%; width:420px; z-index:2400;
+  background:#061018; color:var(--text); box-shadow:-10px 0 30px rgba(0,0,0,0.6); transition:right 300ms ease;
+}
+#adminDrawer.open{ right:0; }
+#adminHeader{ padding:16px; border-bottom:1px solid rgba(255,255,255,0.03); display:flex; justify-content:space-between; align-items:center }
+#adminBody{ padding:12px; overflow:auto; height:calc(100% - 68px) }
+.smallBtn{ padding:8px 10px;border-radius:8px;border:0;background:#071025;color:var(--text);cursor:pointer; margin-left:6px }
+
+/* reports table */
+.tableBox{ max-height:260px; overflow:auto; border-radius:8px; padding:6px; background:rgba(255,255,255,0.01) }
+table{ width:100%; border-collapse:collapse }
 th,td{ padding:8px; border-bottom:1px solid rgba(255,255,255,0.03); text-align:left; font-size:13px }
-th { color:var(--muted); font-weight:700 }
-.smallBtn{ padding:8px 10px;border-radius:8px;border:0;background:#071025;color:var(--text);cursor:pointer }
+th{ color:var(--muted); font-weight:700 }
 .tag{ display:inline-block;padding:4px 8px;border-radius:8px;background:#111827;color:var(--muted);font-size:12px;margin-right:6px }
 .urgent{ background:#f97316;color:#042; padding:4px 8px;border-radius:8px }
-@media (max-width:760px){ #leftPanel{ width:92%; left:4% } .panel{ width:92% } }
+
+/* responsive small */
+@media (max-width:760px){ #leftPanel{ width:92%; left:4% } #adminDrawer{ width:92% } }
 </style>
 </head>
 <body>
@@ -75,7 +83,7 @@ th { color:var(--muted); font-weight:700 }
   <div id="leftPanel">
     <h3>Flood Alert — Trivandrum</h3>
 
-    <label class="small">Start (type or "Current")</label>
+    <label class="small">Start</label>
     <div style="display:flex;gap:8px">
       <input id="startInput" class="input" placeholder="Type start or 'Current location'">
       <button id="useCurrentBtn" class="smallBtn">Current</button>
@@ -88,14 +96,14 @@ th { color:var(--muted); font-weight:700 }
 
     <div style="display:flex;gap:8px;margin-top:6px">
       <button id="getRouteBtn" class="btn">Get Route</button>
-      <button id="findSafeBtn" class="btn ghost" style="display:none">Find Fast & Safe Route</button>
+      <button id="findSafeBtn" class="btn" style="background:var(--safe); color:#042; display:none">Find Fast & Safe Route</button>
     </div>
 
     <div id="routeInfo" class="small" style="margin-top:8px"></div>
 
     <div style="display:flex;gap:8px;margin-top:10px">
       <button id="reportBtn" class="btn" style="background:var(--danger); color:#420000">Report Flood</button>
-      <button id="openAdminBtn" class="smallBtn">Admin</button>
+      <button id="toggleAdminBtn" class="smallBtn">Admin</button>
     </div>
 
     <div style="margin-top:10px" id="weatherBadge" class="small" hidden></div>
@@ -112,81 +120,83 @@ th { color:var(--muted); font-weight:700 }
   <button id="mapFinishBtn">Finish Report</button>
   <div id="thankYou">✅ Thank you — report submitted</div>
 
-  <!-- Report modal -->
-  <div id="reportModal" class="modal small">
-    <div class="panel">
-      <h3 style="margin-top:0">Report Flooded Road</h3>
-      <p class="small">Steps: <ol>
-        <li>Click <b>Pick on Map</b></li>
-        <li>Tap 2+ points along flooded stretch</li>
-        <li>Click <b>Finish Report</b> to submit; admin will review</li>
-      </ol></p>
-      <label class="small">Notes</label>
-      <textarea id="reportNotes" class="input" placeholder="Optional note (landmark, depth, etc)"></textarea>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button id="pickRoadBtn" class="btn">Pick on Map</button>
-        <button id="closeReportBtn" class="smallBtn">Cancel</button>
+  <!-- admin drawer -->
+  <div id="adminDrawer">
+    <div id="adminHeader">
+      <div>
+        <div style="font-size:18px;font-weight:700">Admin</div>
+        <div style="color:var(--muted);font-size:12px">Login to manage reports</div>
+      </div>
+      <div>
+        <button id="openLoginBtn" class="smallBtn">Login</button>
+        <button id="closeDrawerBtn" class="smallBtn">Close</button>
+      </div>
+    </div>
+
+    <div id="adminBody">
+      <!-- login box -->
+      <div id="adminLoginBox">
+        <div style="margin-bottom:8px"><input id="adminId" class="input" placeholder="Admin ID (admin)"></div>
+        <div style="margin-bottom:8px"><input id="adminPass" class="input" placeholder="Password (admin)" type="password"></div>
+        <div style="display:flex;gap:8px"><button id="adminLoginBtn" class="btn">Login</button><button id="adminCancelLogin" class="smallBtn">Cancel</button></div>
+      </div>
+
+      <!-- admin panel (hidden until login) -->
+      <div id="adminPanelMain" style="display:none">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div><b>Pending Reports</b> <span id="pendingCount" class="tag">0</span></div>
+          <div>
+            <input id="adminSearch" class="input" placeholder="Search notes/date" style="width:220px;display:inline-block">
+            <button id="bulkApproveBtn" class="btn" style="background:var(--safe); color:#042">Approve Selected</button>
+            <button id="logoutAdminBtn" class="smallBtn" style="background:#b91c1c">Logout</button>
+          </div>
+        </div>
+
+        <div class="tableBox">
+          <table id="reportsTable">
+            <thead><tr><th style="width:18px"></th><th>Note / Time</th><th style="width:220px">Actions</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+
+        <hr style="border-color:rgba(255,255,255,0.03);margin:12px 0">
+
+        <div style="display:flex;gap:12px">
+          <div style="flex:1">
+            <h4>Saved Flooded Roads</h4>
+            <div id="roadsList" style="max-height:180px;overflow:auto;padding:6px;background:rgba(255,255,255,0.01);border-radius:8px"></div>
+          </div>
+          <div style="width:240px">
+            <h4>Activity</h4>
+            <div id="activityList" style="max-height:240px;overflow:auto;padding:6px;background:rgba(255,255,255,0.01);border-radius:8px"></div>
+          </div>
+        </div>
+
+        <hr style="border-color:rgba(255,255,255,0.03);margin:12px 0">
+
+        <h4>Import / Export</h4>
+        <textarea id="importArea" class="input" placeholder='Paste JSON (roads or reports)'></textarea>
+        <div style="display:flex;gap:8px">
+          <button id="importBtn" class="btn">Import</button>
+          <button id="exportRoadsBtn" class="smallBtn">Export Roads</button>
+          <button id="exportReportsBtn" class="smallBtn">Export Reports</button>
+          <button id="clearDBBtn" class="smallBtn" style="background:#b91c1c">Clear All</button>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Admin modal -->
-  <div id="adminModal" class="modal">
-    <div class="panel">
-      <div id="adminLoginPane">
-        <h3 style="margin-top:0">Admin Login</h3>
-        <input id="adminId" class="input" placeholder="Admin ID">
-        <input id="adminPass" class="input" placeholder="Password" type="password">
-        <div style="display:flex;gap:8px;margin-top:8px">
-          <button id="adminLoginBtn" class="btn">Login</button>
-          <button id="adminCloseBtn" class="smallBtn">Close</button>
-        </div>
+  <!-- Report modal (small) -->
+  <div id="reportModal" class="modal">
+    <div class="panel" style="width:520px">
+      <h3 style="margin-top:0">Report Flooded Road</h3>
+      <p class="small">Pick points on map along the flooded stretch (2+ points). Click <b>Finish Report</b> to submit (admin will review).</p>
+      <label class="small">Notes (optional)</label>
+      <textarea id="reportNotes" class="input" placeholder="Landmark, depth, vehicle stuck, etc."></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button id="pickRoadBtn" class="btn">Pick on Map</button>
+        <button id="closeReportBtn" class="smallBtn">Cancel</button>
       </div>
-
-      <div id="adminPane" style="display:none">
-        <div style="display:flex;justify-content:space-between;align-items:center">
-          <h3 style="margin:0">Admin Dashboard</h3>
-          <div style="display:flex;gap:8px">
-            <button id="exportRoadsBtn" class="smallBtn">Export Roads</button>
-            <button id="exportReportsBtn" class="smallBtn">Export Reports</button>
-            <button id="logoutAdminBtn" class="smallBtn" style="background:#b91c1c">Logout</button>
-          </div>
-        </div>
-        <hr style="border-color:rgba(255,255,255,0.03)"/>
-
-        <div style="display:flex;gap:12px">
-          <div style="flex:1">
-            <h4>Pending Reports <span id="pendingCount" class="tag">0</span></h4>
-            <div style="display:flex;gap:8px;margin-bottom:8px">
-              <input id="adminSearch" class="input" placeholder="Search notes or date">
-              <button id="bulkApproveBtn" class="btn">Bulk Approve</button>
-            </div>
-            <div style="max-height:260px;overflow:auto;border-radius:8px;padding:6px;background:rgba(255,255,255,0.01)">
-              <table id="reportsTable"><thead><tr><th style="width:18px"></th><th>Note / Time</th><th>Actions</th></tr></thead><tbody></tbody></table>
-            </div>
-          </div>
-
-          <div style="width:360px">
-            <h4>Saved Flooded Roads</h4>
-            <div id="roadsList" style="max-height:200px;overflow:auto;padding:6px;background:rgba(255,255,255,0.01);border-radius:8px"></div>
-
-            <hr style="border-color:rgba(255,255,255,0.03)"/>
-
-            <h4>Activity Log</h4>
-            <div id="activityList" style="max-height:200px;overflow:auto;padding:6px;background:rgba(255,255,255,0.01);border-radius:8px"></div>
-
-            <hr style="border-color:rgba(255,255,255,0.03)"/>
-
-            <h4>Import / Export</h4>
-            <textarea id="importArea" class="input" placeholder='Paste roads or reports JSON'></textarea>
-            <div style="display:flex;gap:6px">
-              <button id="importBtn" class="btn">Import</button>
-              <button id="clearDBBtn" class="smallBtn" style="background:#b91c1c">Clear All</button>
-            </div>
-          </div>
-        </div>
-      </div>
-
     </div>
   </div>
 
@@ -214,7 +224,7 @@ async function putItem(store, obj){ const db = await openDB(); return new Promis
 async function addItem(store, obj){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.add(obj); r.onsuccess = ()=> res(r.result); r.onerror = ()=> rej(r.error); }); }
 async function delItem(store, key){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.delete(key); r.onsuccess = ()=> res(); r.onerror = ()=> rej(r.error); }); }
 
-/* ================== Utility ================== */
+/* ================== Utilities ================== */
 function genId(){ return 'id'+Math.random().toString(36).slice(2,9); }
 function nowStr(ts){ return new Date(ts).toLocaleString(); }
 async function recordActivity(text){
@@ -232,7 +242,7 @@ const map = L.map('map',{minZoom:11,maxZoom:18,maxBounds:bounds}).setView([8.524
 const base = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 if(OWM_KEY) L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.55}).addTo(map);
 
-/* ================== Nominatim suggestions (clean UI) ================== */
+/* ================== Suggestion UI (Nominatim) ================== */
 async function nominatim(q){
   if(!q) return [];
   const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&viewbox=${VIEWBOX}&bounded=1`;
@@ -248,7 +258,6 @@ function attachSuggest(inputEl, boxEl){
   let t=null;
   inputEl.addEventListener('input', ()=>{ clearTimeout(t); const q=inputEl.value.trim(); if(!q){ boxEl.style.display='none'; boxEl.innerHTML=''; return; } t=setTimeout(async ()=>{ const res = await nominatim(q); boxEl.innerHTML=''; if(!res || res.length===0){ const d=document.createElement('div'); d.className='muted'; d.innerText='No results in Trivandrum'; boxEl.appendChild(d); } else { res.forEach(it=>{ const div=document.createElement('div'); div.innerText = it.display_name; div.onclick = ()=>{ inputEl.value = it.display_name; inputEl._latlng=[parseFloat(it.lat), parseFloat(it.lon)]; boxEl.style.display='none'; boxEl.innerHTML=''; }; boxEl.appendChild(div); }); } positionSuggest(inputEl, boxEl); boxEl.style.display='block'; },250); });
   inputEl.addEventListener('blur', ()=>{ setTimeout(()=>{ boxEl.style.display='none'; },200); });
-  window.addEventListener('resize', ()=>{ if(boxEl.style.display==='block') positionSuggest(inputEl, boxEl); });
 }
 attachSuggest(document.getElementById('startInput'), document.getElementById('startSuggest'));
 attachSuggest(document.getElementById('endInput'), document.getElementById('endSuggest'));
@@ -275,7 +284,7 @@ async function updateWeather(lat, lon){
   }catch(e){ console.warn('weather failed', e); }
 }
 
-/* ================== FLOODED ROADS STORAGE & RENDER ================== */
+/* ================== Roads storage & render ================== */
 let roadsCache = [], roadLayers = {};
 async function loadRoads(){
   roadsCache = await getAll('roads') || [];
@@ -304,7 +313,7 @@ async function renderRoadsList(){
   });
 }
 
-/* ================== REPORT FLOW (user) ================== */
+/* ================== REPORT FLOW ================== */
 let reportPickMode=false, reportDrawPts=[], reportPreview=null, lastSubmittedId=null, undoTimer=null;
 document.getElementById('reportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='flex'; });
 document.getElementById('closeReportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='none'; });
@@ -319,7 +328,7 @@ map.on('click', function(e){
   }
 });
 
-/* Finish report */
+/* Finish report (shows undo bar for 15s only) */
 document.getElementById('mapFinishBtn').addEventListener('click', async ()=>{
   if(!reportPickMode){ alert('Not in pick mode'); return; }
   if(reportDrawPts.length < 2){ alert('Pick at least 2 points'); return; }
@@ -335,16 +344,14 @@ document.getElementById('mapFinishBtn').addEventListener('click', async ()=>{
 });
 
 function cancelPick(){ reportPickMode=false; reportDrawPts=[]; if(reportPreview) try{ map.removeLayer(reportPreview);}catch(e){} reportPreview=null; document.getElementById('mapFinishBtn').style.display='none'; document.getElementById('reportNotes').value=''; }
-
 function showThankYou(){ const el = document.getElementById('thankYou'); el.style.display='block'; setTimeout(()=> el.style.display='none', 1400); }
 
-/* Undo bar for 15s */
 function showUndoBar(){
   const bar = document.createElement('div');
   bar.style.position='fixed'; bar.style.left='50%'; bar.style.top='8%'; bar.style.transform='translateX(-50%)';
   bar.style.background='#0ea5a9'; bar.style.color='#022'; bar.style.padding='10px 14px'; bar.style.borderRadius='8px'; bar.style.zIndex=4000;
   bar.innerText = 'Report submitted — ';
-  const undo = document.createElement('button'); undo.innerText='Undo'; undo.style.marginLeft='8px'; undo.style.cursor='pointer';
+  const undo = document.createElement('button'); undo.innerText='Undo (15s)'; undo.style.marginLeft='8px'; undo.style.cursor='pointer';
   undo.onclick = async ()=>{
     clearTimeout(undoTimer);
     await delItem('reports', lastSubmittedId);
@@ -359,22 +366,7 @@ function showUndoBar(){
   undoTimer = setTimeout(()=>{ if(bar.parentNode) bar.parentNode.removeChild(bar); lastSubmittedId=null; }, 15000);
 }
 
-/* manual Undo button on left panel (undo latest pending) */
-const undoManualBtn = document.createElement('button'); undoManualBtn.className='smallBtn'; undoManualBtn.innerText='Undo Last'; undoManualBtn.style.marginLeft='6px';
-undoManualBtn.onclick = async ()=>{
-  const reps = await getAll('reports') || [];
-  const pendings = reps.filter(r=> r.status==='pending').sort((a,b)=>b.time - a.time);
-  if(pendings.length===0) return alert('No pending reports');
-  const r = pendings[0];
-  await delItem('reports', r.id);
-  await recordActivity(`User manual undone ${r.id}`);
-  alert('Last pending report removed');
-  refreshPendingCount();
-};
-document.getElementById('leftPanel').appendChild(undoManualBtn);
-
-/* ================== ROUTING & FLOOD DETECTION ================== */
-// geo helpers
+/* ================== Routing & flood detection ================== */
 function pointToSegmentDistance(pt,A,B){
   const toRad = Math.PI/180;
   const R = 6371000;
@@ -404,8 +396,6 @@ function detectFloodHitsOnRoute(routeCoords){
   }
   return hits;
 }
-
-// OSRM route
 async function osrmRoute(start, dest, via=null){
   const coords = `${start[1]},${start[0]};${via ? via[1]+','+via[0]+';' : ''}${dest[1]},${dest[0]}`;
   const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson`;
@@ -417,12 +407,11 @@ async function osrmRoute(start, dest, via=null){
   return { coords: coordsLatLng, distance: j.routes[0].distance, duration: j.routes[0].duration };
 }
 
-/* UI routing state */
+/* routing UI state */
 let mainRouteLayer = null, altRouteLayer = null, floodedSegments = [];
 
 document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
   try{
-    // clear previous
     if(mainRouteLayer) try{ map.removeLayer(mainRouteLayer);}catch(e){}
     if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
     floodedSegments.forEach(l=>{ try{ map.removeLayer(l);}catch(e){} }); floodedSegments=[];
@@ -445,53 +434,69 @@ document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
     roadsCache = await getAll('roads') || [];
     const hits = detectFloodHitsOnRoute(main.coords);
     if(hits.length > 0){
-      // mark flooded portions
       hits.forEach(h=>{
         const l = L.polyline(h.seg, { color:'var(--danger)', weight:6, dashArray:'10,8' }).addTo(map);
         floodedSegments.push(l);
       });
-      document.getElementById('routeInfo').innerText += ' · Flooded segment detected';
-      // show Find Fast & Safe Route button
+      document.getElementById('routeInfo').innerText += ' · Flood detected on route';
       document.getElementById('findSafeBtn').style.display='inline-block';
       document.getElementById('findSafeBtn').onclick = ()=> generateSafeAlternate(main.coords, start, dest);
     } else {
-      document.getElementById('routeInfo').innerText += ' · No flooded roads on route';
+      document.getElementById('routeInfo').innerText += ' · No flooded roads';
     }
   }catch(e){ console.error(e); alert('Route error: '+(e.message||e)); document.getElementById('routeInfo').innerText=''; }
 });
 
-/* Generate safe alternate: try via-left / via-right detours */
-async function generateSafeAlternate(routeCoords, start, dest){
+/* generate detour that avoids flooded segment and rejoins after flood end */
+async function generateSafeAlternate(mainCoords, start, dest){
   try{
     document.getElementById('routeInfo').innerText = 'Generating safe alternate...';
-    if(!routeCoords || routeCoords.length===0){ alert('No main route'); return; }
-    const hits = detectFloodHitsOnRoute(routeCoords);
-    if(hits.length===0){ alert('No flooded segments'); return; }
-    const mid = hits[0].seg[Math.floor(hits[0].seg.length/2)];
-    const offsetMeters = 220;
-    const offsetDeg = offsetMeters / 111000;
-    const left = [ mid[0] + offsetDeg, mid[1] - offsetDeg ];
-    const right = [ mid[0] - offsetDeg, mid[1] + offsetDeg ];
+    if(!mainCoords || mainCoords.length===0) return alert('No main route');
+    const hits = detectFloodHitsOnRoute(mainCoords);
+    if(hits.length===0) return alert('No flooded segments to avoid');
+    // take first hit, find entry index and exit index on mainCoords
+    const hit = hits[0];
+    // find index of first and last points of hit in mainCoords by distance threshold
+    const thresh = 20;
+    let entryIndex = -1, exitIndex = -1;
+    for(let i=0;i<mainCoords.length;i++){
+      if(entryIndex===-1 && hit.seg.some(pt => Math.hypot((pt[0]-mainCoords[i][0]), (pt[1]-mainCoords[i][1])) < 0.0005)) entryIndex = i;
+      if(entryIndex!==-1 && hit.seg.every(pt => Math.hypot((pt[0]-mainCoords[i][0]), (pt[1]-mainCoords[i][1])) > 0.0005)){ exitIndex = i; break; }
+    }
+    if(entryIndex === -1) entryIndex = 0;
+    if(exitIndex === -1) exitIndex = mainCoords.length-1;
+    const beforePoint = mainCoords[Math.max(0, entryIndex-1)];
+    const afterPoint = mainCoords[Math.min(mainCoords.length-1, exitIndex+1)];
+
+    // create two candidate via points by offsetting perpendicular
+    const midIdx = Math.floor((entryIndex + exitIndex) / 2);
+    const mid = mainCoords[midIdx];
+    // offset in degrees ~ meters/111000
+    const offsetM = 250;
+    const offDeg = offsetM / 111000;
+    const left = [ mid[0] + offDeg, mid[1] - offDeg ];
+    const right = [ mid[0] - offDeg, mid[1] + offDeg ];
     const candidates = [left, right];
+
     let best = null;
     for(const via of candidates){
       try{
-        const c = await osrmRoute(start, dest, via);
-        const hitsC = detectFloodHitsOnRoute(c.coords);
-        if(hitsC.length === 0){ best = c; break; }
-        if(!best || c.duration < best.duration) best = c;
-      }catch(err){ console.warn('detour err', err); }
+        const res = await osrmRoute(start, dest, via);
+        const ins = detectFloodHitsOnRoute(res.coords);
+        if(ins.length === 0){ best = res; break; }
+        if(!best || res.duration < best.duration) best = res;
+      }catch(err){ console.warn('via failed', err); }
     }
     if(!best) return alert('No alternate found');
     if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
     altRouteLayer = L.polyline(best.coords, { color: 'var(--safe)', weight:6 }).addTo(map);
     map.fitBounds(altRouteLayer.getBounds(), { padding:[60,60] });
     document.getElementById('routeInfo').innerText = `Safe alternate: ${(best.distance/1000).toFixed(2)} km · ${(best.duration/60).toFixed(1)} min`;
-    // remove main visual optionally or keep both
+    // Optionally remove main route to focus on alternate
   }catch(e){ console.error(e); alert('Safe alternate error'); }
 }
 
-/* ================== Resolve place helper ================== */
+/* ================== resolve place helper ================== */
 async function resolvePlace(text, inputEl){
   if(!text) return null;
   if(text.toLowerCase().includes('current') && userPos) return userPos;
@@ -504,23 +509,26 @@ async function resolvePlace(text, inputEl){
 }
 document.getElementById('useCurrentBtn').addEventListener('click', ()=>{ if(userPos){ document.getElementById('startInput').value='Current location'; document.getElementById('startInput')._latlng = userPos; } else alert('Allow location'); });
 
-/* ================== ADMIN (login + panel) ================== */
+/* ================== ADMIN DRAWER wiring ================== */
+document.getElementById('toggleAdminBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.toggle('open'); });
+document.getElementById('closeDrawerBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.remove('open'); });
+document.getElementById('openLoginBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.add('open'); document.getElementById('adminLoginBox').scrollIntoView(); });
+document.getElementById('adminCancelLogin').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.remove('open'); });
+
 const ADMIN_ID = 'admin', ADMIN_PASS = 'admin';
-document.getElementById('openAdminBtn').addEventListener('click', ()=> openAdminModal());
-async function openAdminModal(){ document.getElementById('adminModal').style.display='flex'; document.getElementById('adminLoginPane').style.display='block'; document.getElementById('adminPane').style.display='none'; refreshPendingCount(); loadRoads(); renderActivity(); }
-document.getElementById('adminCloseBtn').addEventListener('click', ()=>{ document.getElementById('adminModal').style.display='none'; });
 document.getElementById('adminLoginBtn').addEventListener('click', async ()=>{
   const id = document.getElementById('adminId').value.trim();
   const pw = document.getElementById('adminPass').value;
-  if(id === ADMIN_ID && pw === ADMIN_PASS){
-    document.getElementById('adminLoginPane').style.display='none';
-    document.getElementById('adminPane').style.display='block';
+  if(id===ADMIN_ID && pw===ADMIN_PASS){
+    // show admin panel inside drawer
+    document.getElementById('adminLoginBox').style.display='none';
+    document.getElementById('adminPanelMain').style.display='block';
     await renderAdminData();
+    await loadRoads();
     await recordActivity('Admin logged in');
   } else alert('Invalid credentials');
 });
 
-/* Admin render and actions */
 async function renderAdminData(){
   const reps = await getAll('reports') || [];
   const pending = reps.filter(r => r.status==='pending' || !r.status).sort((a,b)=>b.time - a.time);
@@ -534,40 +542,30 @@ async function renderAdminData(){
     const tdAct = document.createElement('td');
     const preview = document.createElement('button'); preview.className='smallBtn'; preview.innerText='Preview';
     preview.onclick = ()=>{ if(window._preview) try{ map.removeLayer(window._preview);}catch(e){} window._preview = L.polyline(r.coords, { color:'#f97316', weight:6, dashArray:'6,6' }).addTo(map); map.fitBounds(window._preview.getBounds(), { padding:[60,60] }); };
-    const approve = document.createElement('button'); approve.className='btn'; approve.innerText='Approve';
+    const approve = document.createElement('button'); approve.className='btn'; approve.innerText='Approve'; approve.style.marginLeft='6px';
     approve.onclick = async ()=>{ await addItem('roads', { id: genId(), coords: r.coords }); r.status='approved'; await putItem('reports', r); await loadRoads(); await renderAdminData(); await recordActivity(`Approved ${r.id}`); refreshPendingCount(); };
-    const reject = document.createElement('button'); reject.className='smallBtn'; reject.style.background='#b91c1c'; reject.innerText='Reject';
+    const reject = document.createElement('button'); reject.className='smallBtn'; reject.style.background='#b91c1c'; reject.style.marginLeft='6px'; reject.innerText='Reject';
     reject.onclick = async ()=>{ r.status='rejected'; await putItem('reports', r); await renderAdminData(); await recordActivity(`Rejected ${r.id}`); refreshPendingCount(); };
-    const edit = document.createElement('button'); edit.className='smallBtn'; edit.innerText='Edit';
-    edit.onclick = async ()=>{ const nw = prompt('Edit note', r.text||''); if(nw!==null){ r.text=nw; await putItem('reports', r); renderAdminData(); await recordActivity(`Edited ${r.id}`); } };
-    const urgent = document.createElement('button'); urgent.className='smallBtn'; urgent.style.background='#f97316'; urgent.innerText='Urgent';
-    urgent.onclick = async ()=>{ r.urgent=true; await putItem('reports', r); renderAdminData(); await recordActivity(`Marked urgent ${r.id}`); };
-
-    tdAct.appendChild(preview); tdAct.appendChild(approve); tdAct.appendChild(reject); tdAct.appendChild(edit); tdAct.appendChild(urgent);
-
+    tdAct.appendChild(preview); tdAct.appendChild(approve); tdAct.appendChild(reject);
     tr.appendChild(tdChk); tr.appendChild(tdNote); tr.appendChild(tdAct);
     tbody.appendChild(tr);
   });
-
   document.getElementById('pendingCount').innerText = pending.length;
 
-  // bulk approve
   document.getElementById('bulkApproveBtn').onclick = async ()=>{
     const checks = Array.from(document.querySelectorAll('#reportsTable tbody input[type="checkbox"]')).filter(c=>c.checked);
-    if(checks.length===0) return alert('Select reports');
+    if(checks.length===0) return alert('Select items');
     if(!confirm(`Approve ${checks.length} reports?`)) return;
     for(const c of checks){
       const id = c.dataset.id; const all = await getAll('reports'); const r = all.find(x=>x.id===id);
-      if(r){ await addItem('roads', { id: genId(), coords:r.coords }); r.status='approved'; await putItem('reports', r); await recordActivity(`Bulk approved ${r.id}`); }
+      if(r){ await addItem('roads', { id: genId(), coords: r.coords }); r.status='approved'; await putItem('reports', r); await recordActivity(`Bulk approved ${r.id}`); }
     }
     await loadRoads(); await renderAdminData(); refreshPendingCount();
     alert('Bulk approved');
   };
 }
 
-/* Admin exports/imports */
-document.getElementById('exportRoadsBtn').addEventListener('click', async ()=>{ const roads = await getAll('roads'); document.getElementById('importArea').value = JSON.stringify(roads, null, 2); alert('Roads exported to box'); });
-document.getElementById('exportReportsBtn').addEventListener('click', async ()=>{ const reps = await getAll('reports'); document.getElementById('importArea').value = JSON.stringify(reps, null, 2); alert('Reports exported to box'); });
+/* admin import/export/clear */
 document.getElementById('importBtn').addEventListener('click', async ()=>{
   const txt = document.getElementById('importArea').value.trim(); if(!txt) return alert('Paste JSON');
   try{
@@ -581,40 +579,40 @@ document.getElementById('importBtn').addEventListener('click', async ()=>{
     alert('Imported');
   }catch(e){ alert('Import error: '+e.message); }
 });
-document.getElementById('clearDBBtn').addEventListener('click', async ()=>{
-  if(!confirm('Clear all roads & reports?')) return;
-  const db = await openDB();
-  const tx = db.transaction(['roads','reports'],'readwrite');
-  tx.objectStore('roads').clear(); tx.objectStore('reports').clear();
-  tx.oncomplete = async ()=>{ await loadRoads(); await renderAdminData(); await recordActivity('Admin cleared DB'); alert('Cleared'); };
-});
+document.getElementById('exportRoadsBtn').addEventListener('click', async ()=>{ const roads = await getAll('roads'); document.getElementById('importArea').value = JSON.stringify(roads, null, 2); alert('Exported roads'); });
+document.getElementById('exportReportsBtn').addEventListener('click', async ()=>{ const reps = await getAll('reports'); document.getElementById('importArea').value = JSON.stringify(reps, null, 2); alert('Exported reports'); });
+document.getElementById('clearDBBtn').addEventListener('click', async ()=>{ if(!confirm('Clear all roads & reports?')) return; const db = await openDB(); const tx = db.transaction(['roads','reports'],'readwrite'); tx.objectStore('roads').clear(); tx.objectStore('reports').clear(); tx.oncomplete = async ()=>{ await loadRoads(); await renderAdminData(); await recordActivity('Admin cleared DB'); alert('Cleared'); }; });
 
-document.getElementById('logoutAdminBtn').addEventListener('click', ()=>{ document.getElementById('adminModal').style.display='none'; });
+document.getElementById('logoutAdminBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.remove('open'); document.getElementById('adminLoginBox').style.display='block'; document.getElementById('adminPanelMain').style.display='none'; });
 
-/* Pending count refresh */
+/* pending count refresh */
 async function refreshPendingCount(){ const reps = await getAll('reports') || []; const pendings = reps.filter(r=> r.status==='pending' || !r.status).length; document.getElementById('pendingCount').innerText = pendings; }
 
-/* Activity log render */
-async function renderActivity(){
-  const meta = await getAll('meta') || [];
-  const a = (meta.find(x=>x.k==='activityLog')||{k:'activityLog', v:[]}).v;
-  const el = document.getElementById('activityList'); el.innerHTML=''; a.slice(0,200).forEach(it=>{ const d = document.createElement('div'); d.style.padding='6px'; d.style.borderBottom='1px solid rgba(255,255,255,0.03)'; d.innerHTML = `<div style="font-size:12px;color:var(--muted)">${nowStr(it.time)}</div><div>${it.text}</div>`; el.appendChild(d); });
-}
+/* render activity */
+async function renderActivity(){ const meta = await getAll('meta') || []; const a = (meta.find(x=>x.k==='activityLog') || {k:'activityLog', v:[]}).v || []; const el = document.getElementById('activityList'); el.innerHTML=''; a.slice(0,200).forEach(it=>{ const d = document.createElement('div'); d.style.padding='6px'; d.style.borderBottom='1px solid rgba(255,255,255,0.03)'; d.innerHTML = `<div style="font-size:12px;color:var(--muted)">${nowStr(it.time)}</div><div>${it.text}</div>`; el.appendChild(d); }); }
 
-/* ================== Startup seed & load ================== */
+/* ================== init (seed data) ================== */
 (async function init(){
-  // ensure activity meta exists
   const meta = await getAll('meta') || [];
   if(!meta.find(x=>x.k==='activityLog')) await putItem('meta', {k:'activityLog', v:[]});
-  // seed demo roads if none
   const roads = await getAll('roads'); if(!roads || roads.length===0){
     await addItem('roads', { id: genId(), coords:[[8.5280,76.9350],[8.5285,76.9370]] });
     await addItem('roads', { id: genId(), coords:[[8.5150,76.9550],[8.5160,76.9560]] });
   }
-  await loadRoads(); await refreshPendingCount();
+  await loadRoads();
+  await refreshPendingCount();
   setTimeout(()=>{ positionSuggest(document.getElementById('startInput'), document.getElementById('startSuggest')); positionSuggest(document.getElementById('endInput'), document.getElementById('endSuggest')); }, 300);
 })();
 
+/* helper: position suggestion box */
+function positionSuggest(inputEl, boxEl){
+  const r = inputEl.getBoundingClientRect();
+  boxEl.style.left = (r.left + window.scrollX) + 'px';
+  boxEl.style.top = (r.bottom + window.scrollY + 6) + 'px';
+  boxEl.style.width = r.width + 'px';
+}
+
+/* ================== END ================== */
 </script>
 </body>
 </html>
