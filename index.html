@@ -1,691 +1,380 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Flood Alert — Trivandrum (Improved)</title>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Flood Alert — Trivandrum (Enhanced)</title>
 
-<!-- Leaflet CSS -->
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <!-- Leaflet core -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
-<style>
-:root{
-  --bg:#0f1720; --panel:#0b1220; --text:#e6eef6; --muted:#9fb0c8;
-  --accent:#16a34a; --danger:#ef4444; --safe:#60A5FA; /* light blue safe route */
-  --panel-contrast:#071025;
-}
-body.light{ --bg:#f6fbff; --panel:#fff; --text:#0b1220; --muted:#475569 }
-*{box-sizing:border-box}
-html,body,#map{height:100%;margin:0;padding:0}
-body{font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+  <!-- Leaflet plugins -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.css" />
+  <script src="https://unpkg.com/leaflet-control-geocoder/dist/Control.Geocoder.js"></script>
 
-/* left panel */
-#leftPanel{
-  position:absolute; left:12px; top:12px; z-index:1400; width:360px;
-  background:var(--panel); padding:12px; border-radius:12px;
-  box-shadow:0 10px 30px rgba(0,0,0,0.45);
-}
-#leftPanel h3{ margin:0 0 8px 0; font-size:16px }
-.input{ width:100%; padding:10px; margin-bottom:8px; border-radius:8px; border:0; background:var(--panel-contrast); color:var(--text) }
-.btn{ padding:10px; border-radius:8px; border:0; cursor:pointer }
-.primary{ background:linear-gradient(90deg,#10b981,#064e3b); color:white; font-weight:700 }
-.safe{ background:var(--safe); color:#04311a; font-weight:700 }
-.smallBtn{ padding:8px 10px; border-radius:8px; border:0; background:var(--panel-contrast); color:var(--text); cursor:pointer }
-.danger{ background:var(--danger); color:white }
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.css" />
+  <script src="https://unpkg.com/leaflet.locatecontrol/dist/L.Control.Locate.min.js"></script>
 
-/* suggestions */
-.suggestions{ position:absolute; z-index:2100; background:var(--panel); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.45); overflow:auto; max-height:220px; color:var(--text) }
-.suggestions div{ padding:8px; border-bottom:1px solid rgba(255,255,255,0.03); cursor:pointer }
-.suggestions div:hover{ background: rgba(255,255,255,0.02) }
+  <script src="https://unpkg.com/leaflet-ant-path@1.6.0/dist/leaflet-ant-path.min.js"></script>
+  <script src="https://unpkg.com/leaflet-polylinedecorator@1.7.0/dist/leaflet.polylineDecorator.js"></script>
 
-/* legend */
-#legend{ position:absolute; left:12px; bottom:12px; z-index:1200; background:var(--panel); padding:10px; border-radius:10px; color:var(--muted); font-size:13px }
-.legend-row{ display:flex; gap:8px; align-items:center; margin-top:6px }
-.swatch{ width:18px; height:10px; border-radius:3px }
-.swatch.danger{ background:var(--danger) }
-.swatch.safe{ background:var(--safe) }
+  <style>
+    :root{
+      --card-bg: rgba(255,255,255,0.95);
+      --accent-1: linear-gradient(135deg,#2dd4bf,#06b6d4);
+      --accent-2: linear-gradient(135deg,#7c3aed,#ef4444);
+      --glass: rgba(255,255,255,0.6);
+      --shadow: 0 8px 30px rgba(11,22,39,0.15);
+    }
+    html,body{height:100%;margin:0;font-family:Inter,Arial,Helvetica,sans-serif;background:linear-gradient(180deg,#e6f7fb 0%, #f7fbff 100%)}
+    #map{height:100vh;width:100vw;}
 
-/* alert banner */
-#alertBanner{ position:absolute; left:50%; transform:translateX(-50%); top:12px; z-index:1600; min-width:320px; padding:12px; border-radius:10px; display:none; font-weight:700; color:white; cursor:pointer; box-shadow:0 12px 40px rgba(0,0,0,0.4) }
+    /* Controls card */
+    .controls{
+      position: absolute;z-index:1400;left:14px;top:14px;width:340px;padding:16px;border-radius:14px;background:var(--card-bg);box-shadow:var(--shadow);backdrop-filter: blur(6px);
+      transition: transform .25s ease, box-shadow .25s ease;
+    }
+    .controls:hover{transform: translateY(-4px)}
+    .controls h2{margin:0 0 8px;font-size:16px}
+    .row{display:flex;gap:8px}
+    .field{flex:1}
+    input[type="search"],button{width:100%;padding:10px;border-radius:10px;border:1px solid rgba(10,10,10,0.06);font-size:14px}
+    .muted{font-size:13px;color:#475569;margin-top:8px}
+    .infoBox{margin-top:10px;padding:10px;border-radius:8px;background:linear-gradient(180deg,rgba(255,255,255,0.8),rgba(255,255,255,0.6));font-size:13px}
 
-/* modal */
-.modal{ position:fixed; inset:0; display:none; align-items:center; justify-content:center; z-index:1700; background:rgba(0,0,0,0.45) }
-.panel{ width:560px; max-height:82vh; overflow:auto; background:var(--panel); padding:14px; border-radius:12px; color:var(--text) }
+    /* small footer */
+    .small{font-size:12px;color:#334155;margin-top:8px}
 
-/* map finish button */
-.map-finish{ position:absolute; left:50%; transform:translateX(-50%); bottom:96px; z-index:2000; padding:10px 14px; border-radius:10px; background:var(--accent); color:#04311a; font-weight:700; cursor:pointer; box-shadow:0 12px 30px rgba(2,6,23,0.6) }
+    /* animated legend */
+    .legend{position:absolute;right:14px;top:14px;z-index:1400;padding:12px;border-radius:12px;background:var(--card-bg);box-shadow:var(--shadow);width:220px}
+    .legend .item{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+    .dot{width:14px;height:14px;border-radius:50%;}
+    .line-sample{height:8px;border-radius:6px;width:42px}
 
-/* current location icon styles */
-.leaflet-current-icon {
-  width:36px;height:36px;display:flex;align-items:center;justify-content:center;
-  transform:translate(-50%,-50%);
-}
-.leaflet-current-icon svg { filter: drop-shadow(0 2px 6px rgba(6,182,212,0.45)); }
-
-.pulse-ring {
-  animation: pulse 2s infinite;
-  border-radius:50%;
-}
-@keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(96,165,250,0.6); } 70% { box-shadow: 0 0 0 16px rgba(96,165,250,0.05);} 100% { box-shadow:0 0 0 0 rgba(96,165,250,0);} }
-
-/* small helpers */
-.row{ display:flex; gap:8px; align-items:center }
-.muted{ color:var(--muted) }
-.small{ font-size:12px }
-
-/* responsive */
-@media (max-width:720px){
-  #leftPanel{ width:92%; left:4% }
-  .panel{ width:92% }
-}
-</style>
+    /* responsive */
+    @media (max-width:420px){.controls{width:92%;left:4%;top:8px;padding:12px}}
+  </style>
 </head>
 <body>
 
-<div id="alertBanner"></div>
+<div class="controls" id="controls">
+  <h2>Flood-aware Navigation — Trivandrum</h2>
 
-<div id="leftPanel">
-  <h3>Flood Alert — Trivandrum</h3>
-
-  <label class="small">Start (type or "Current")</label>
-  <div style="display:flex;gap:8px">
-    <input id="startInput" class="input" placeholder="Type start place or 'Current location'">
-    <button id="useCurrent" class="smallBtn">Current</button>
-  </div>
-  <div id="startSuggest" class="suggestions" style="display:none"></div>
-
-  <label class="small">Destination (Trivandrum)</label>
-  <input id="endInput" class="input" placeholder="Type destination (Trivandrum)">
-  <div id="endSuggest" class="suggestions" style="display:none"></div>
-
-  <div style="display:flex;gap:8px;margin-top:8px">
-    <button id="findBtn" class="btn primary">Find fast & safe route</button>
-    <button id="takeSafeBtn" class="btn safe" style="display:none">Take Safe Route</button>
+  <div class="row">
+    <div class="field">
+      <label for="startSearch">Start (type & press enter)</label>
+      <input id="startSearch" type="search" placeholder="Current location or address" />
+    </div>
+    <div style="width:44px;display:flex;align-items:flex-end">
+      <button id="useCurrent" title="Use current location">📍</button>
+    </div>
   </div>
 
-  <div id="routeInfo" class="small muted" style="margin-top:8px"></div>
-
-  <div style="display:flex;gap:8px;margin-top:8px">
-    <button id="reportBtn" class="smallBtn danger">Report Flood Road</button>
-    <button id="settingsBtn" class="smallBtn">Settings</button>
+  <div style="margin-top:8px;">
+    <label for="endSearch">Destination (type & press enter)</label>
+    <input id="endSearch" type="search" placeholder="Destination address or place" />
   </div>
+
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="goBtn">Get Route</button>
+    <button id="clearBtn" style="background:transparent;border:1px solid rgba(0,0,0,0.06)">Clear</button>
+  </div>
+
+  <div class="infoBox" id="info">No route yet — type start and destination.</div>
+  <div class="small">Weather: <span id="weather">—</span></div>
+  <div class="muted">Pro tip: Press Enter after typing a place. Use the 📍 button to snap to your live location. Map is restricted to Trivandrum.</div>
 </div>
 
-<div id="legend">
-  <div><strong>Legend</strong></div>
-  <div class="legend-row"><div class="swatch danger"></div><div class="small">Flooded road</div></div>
-  <div class="legend-row"><div class="swatch safe"></div><div class="small">Safe route (light blue)</div></div>
+<div class="legend" id="legend">
+  <div style="font-weight:600;margin-bottom:8px">Map Legend</div>
+  <div class="item"><div class="dot" style="background:linear-gradient(90deg,#06b6d4,#2dd4bf)"></div><div>Live user location</div></div>
+  <div class="item"><div class="line-sample" style="background:linear-gradient(90deg,#3b82f6,#06b6d4)"></div><div>Primary route</div></div>
+  <div class="item"><div class="line-sample" style="background:linear-gradient(90deg,#10b981,#34d399);height:8px;border:2px dashed rgba(0,0,0,0.06)"></div><div>Alternate route (avoiding flood)</div></div>
+  <div class="item"><div class="dot" style="background:#ef4444"></div><div>Flooded segment</div></div>
 </div>
 
 <div id="map"></div>
 
-<!-- Report modal -->
-<div id="reportModal" class="modal">
-  <div class="panel">
-    <h3>Report Flooded Road</h3>
-    <p class="small muted">Click <b>Pick on Map</b>, then click START then END on the map. Or paste coords like: <code>8.52,76.94;8.521,76.941</code></p>
-    <input id="reportCoords" class="input" placeholder="Optional coords (lat,lng;lat,lng)">
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button id="pickOnMapBtn" class="smallBtn">Pick on Map</button>
-      <button id="submitReportBtn" class="smallBtn" style="background:var(--accent)">Submit</button>
-      <button id="closeReportBtn" class="smallBtn danger">Close</button>
-    </div>
-  </div>
-</div>
-
-<!-- Settings/Admin -->
-<div id="settingsModal" class="modal">
-  <div class="panel">
-    <h3>Settings & Admin</h3>
-    <div style="display:flex;gap:8px;margin-bottom:8px">
-      <button id="toggleTheme" class="smallBtn">Toggle Light/Dark</button>
-      <button id="resetView" class="smallBtn">Reset View</button>
-    </div>
-
-    <hr/>
-
-    <h4>Admin Login</h4>
-    <input id="adminUser" class="input" placeholder="admin">
-    <input id="adminPass" class="input" placeholder="password" type="password">
-    <div style="display:flex;gap:8px;margin-top:8px">
-      <button id="adminLogin" class="smallBtn primary">Login</button>
-      <button id="changePass" class="smallBtn">Change Password</button>
-      <button id="closeSettings" class="smallBtn danger">Close</button>
-    </div>
-
-    <div id="adminArea" style="display:none;margin-top:12px">
-      <h4>Pending Reports</h4>
-      <div id="pendingList" style="max-height:160px;overflow:auto"></div>
-
-      <hr/>
-      <h4>Flood Roads (approved)</h4>
-      <div id="approvedList" style="max-height:160px;overflow:auto"></div>
-
-      <hr/>
-      <h4>GitHub Config (optional)</h4>
-      <input id="ghOwner" class="input" placeholder="GitHub username/org">
-      <input id="ghRepo" class="input" placeholder="Repo name">
-      <input id="ghPath" class="input" value="data/flood_data.json" placeholder="file path (data/flood_data.json)">
-      <input id="ghToken" class="input" placeholder="GH token (temporary)">
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button id="saveGhBtn" class="smallBtn">Save GH config</button>
-        <button id="forceReload" class="smallBtn">Reload floods</button>
-      </div>
-    </div>
-
-  </div>
-</div>
-
-<!-- Leaflet & Decorator -->
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.polylinedecorator/1.7.0/leaflet.polylineDecorator.min.js"></script>
-
 <script>
-/* ================= CONFIG ================= */
-const GRAPH_HOPPER_KEY = '363c2df2-baa1-4e35-b1b9-9ceb7fc3eed1';
-const ORS_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImViOTBkMjI4ZGUyNDRkMzg5MGU1ZWVkNjU0MDU0Y2MzIiwiaCI6Im11cm11cjY0In0=';
-const OWM_KEY = 'ce70bf8bdb2bbf3ad192ee196735d6cf';
-const VIEWBOX = '76.7,8.7,77.2,8.3';
-const ADMIN_USER = 'admin';
-const ADMIN_SALT = '::saltv1';
+  // ---------------------------
+  // === CONFIG & KEYS ========
+  // ---------------------------
+  const OPENROUTESERVICE_KEY = 'eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6ImViOTBkMjI4ZGUyNDRkMzg5MGU1ZWVkNjU0MDU0Y2MzIiwiaCI6Im11cm11cjY0In0=';
+  const OPENWEATHER_KEY = 'ce70bf8bdb2bbf3ad192ee196735d6cf';
 
-/* ================= MAP INIT ================= */
-const bounds = L.latLngBounds([8.3,76.7],[8.7,77.2]);
-const map = L.map('map',{minZoom:11,maxZoom:18,maxBounds:bounds}).setView([8.5241,76.9366],13);
-const baseTiles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-const darkTiles = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19});
-if(OWM_KEY) L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.55}).addTo(map);
+  // Trivandrum bounding box (tight)
+  const trivandrumBounds = L.latLngBounds([8.30, 76.70], [8.72, 77.12]);
 
-/* ================= IndexedDB tiny wrapper ================= */
-function openDB(name='floodDB',version=1){
-  return new Promise((resolve,reject)=>{
-    const rq = indexedDB.open(name,version);
-    rq.onupgradeneeded = (e)=>{
-      const db = e.target.result;
-      if(!db.objectStoreNames.contains('roads')) db.createObjectStore('roads',{keyPath:'id'});
-      if(!db.objectStoreNames.contains('reports')) db.createObjectStore('reports',{keyPath:'id'});
-    };
-    rq.onsuccess = ()=> resolve(rq.result);
-    rq.onerror = ()=> reject(rq.error);
-  });
-}
-async function addRecord(store,obj){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.add(obj); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
-async function putRecord(store,obj){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.put(obj); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
-async function deleteRecord(store,key){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readwrite'); const os = tx.objectStore(store); const r = os.delete(key); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error); }); }
-async function getAllRecords(store){ const db = await openDB(); return new Promise((res,rej)=>{ const tx = db.transaction(store,'readonly'); const os = tx.objectStore(store); const r = os.getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error); }); }
+  // Create map
+  const map = L.map('map', {
+    maxBounds: trivandrumBounds,
+    maxBoundsViscosity: 1.0,
+    minZoom: 11,
+    maxZoom: 17
+  }).setView([8.52, 76.94], 12.5);
 
-/* ================= HELPERS ================= */
-function el(id){ return document.getElementById(id); }
-function showBanner(txt, onClick){ const b = el('alertBanner'); b.innerText=txt; b.style.display='block'; if(onClick){ b.style.cursor='pointer'; b.onclick = ()=>{ onClick(); b.style.display='none'; } } else b.onclick=null; setTimeout(()=>{ try{ b.style.display='none'; }catch(e){} },9000); }
-function hideBanner(){ const b = el('alertBanner'); b.style.display='none'; b.onclick=null; }
-function genId(){ return 'id'+Math.random().toString(36).slice(2,9); }
+  // Tiles (OSM)
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
 
-/* ================= NOMINATIM SUGGESTIONS ================= */
-async function nominatim(q){
-  try{
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=6&viewbox=${VIEWBOX}&bounded=1`;
-    const r = await fetch(url, { headers:{ 'Accept-Language':'en' } });
-    if(!r.ok) return [];
-    return await r.json();
-  }catch(e){ console.warn(e); return []; }
-}
-function positionSuggest(inputEl, boxEl){
-  const rect = inputEl.getBoundingClientRect();
-  boxEl.style.left = (rect.left + window.scrollX) + 'px';
-  boxEl.style.top = (rect.bottom + window.scrollY + 6) + 'px';
-  boxEl.style.width = rect.width + 'px';
-}
-function attachSuggest(inputEl, boxEl){
-  let timer=null;
-  inputEl.addEventListener('input', ()=>{ clearTimeout(timer); const q=inputEl.value.trim(); if(!q){ boxEl.style.display='none'; boxEl.innerHTML=''; return; } timer=setTimeout(async ()=>{
-    const list = await nominatim(q);
-    boxEl.innerHTML='';
-    if(!list || list.length===0){ const d=document.createElement('div'); d.innerText='No results (Trivandrum)'; d.className='small muted'; boxEl.appendChild(d); }
-    list.forEach(it=>{
-      const div = document.createElement('div'); div.innerText = it.display_name; div.onclick = ()=>{ inputEl.value = it.display_name; inputEl._latlng = [parseFloat(it.lat), parseFloat(it.lon)]; boxEl.style.display='none'; boxEl.innerHTML=''; };
-      boxEl.appendChild(div);
-    });
-    positionSuggest(inputEl, boxEl); boxEl.style.display='block';
-  }, 300); });
-  inputEl.addEventListener('blur', ()=> setTimeout(()=>{ boxEl.style.display='none'; }, 200));
-  window.addEventListener('resize', ()=>{ if(boxEl.style.display==='block') positionSuggest(inputEl, boxEl); });
-  window.addEventListener('scroll', ()=>{ if(boxEl.style.display==='block') positionSuggest(inputEl, boxEl); });
-}
-attachSuggest(el('startInput'), el('startSuggest'));
-attachSuggest(el('endInput'), el('endSuggest'));
+  // locate control (provides a button too)
+  L.control.locate({keepCurrentZoomLevel:true,showPopup:false}).addTo(map);
 
-/* ================= CURRENT LOCATION (always shown) ================= */
-let userPos = null, userMarker = null, userAccuracy = null;
-function makeCurrentIcon(){
-  const svg = `<div class="leaflet-current-icon">
-    <div class="pulse-ring" style="width:36px;height:36px;border-radius:50%;"></div>
-    <svg width="28" height="28" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-      <path d="M12 2 L15 11 L12 9 L9 11 Z" fill="#fff" stroke="#60A5FA" stroke-width="1"/>
-      <circle cx="12" cy="15" r="2" fill="#60A5FA"/>
-    </svg>
-  </div>`;
-  return L.divIcon({ html: svg, className: '' , iconSize:[36,36], iconAnchor:[18,18]});
-}
-if(navigator.geolocation){
-  navigator.geolocation.watchPosition(p=>{
-    userPos = [p.coords.latitude, p.coords.longitude];
+  // markers and layers
+  let userMarker = null;
+  let userAccuracy = null;
+  let routeLayer = null;
+  let altRouteLayer = null;
+  let floodLayer = null;
+  let startArrow = null;
+  let endMarker = null;
+
+  // custom icons
+  const userIcon = L.circleMarker([0,0],{radius:8,color:'#fff',weight:2,fillColor:'#06b6d4',fillOpacity:1}).options;
+
+  const endIcon = L.divIcon({className:'end-icon',html:'<svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="12" r="8" fill="#ef4444"/><circle cx="12" cy="12" r="4" fill="#fff"/></svg>',iconSize:[24,24],iconAnchor:[12,12]});
+
+  // keep user's marker always visible and follow updates
+  function onLocationFound(lat,lng,accuracy){
+    const latlng = [lat,lng];
     if(!userMarker){
-      userMarker = L.marker(userPos, { icon: makeCurrentIcon(), zIndexOffset:1000 }).addTo(map).bindPopup('You are here');
+      userMarker = L.marker(latlng,{title:'You',riseOnHover:true}).addTo(map).bindPopup('You are here');
     } else {
-      userMarker.setLatLng(userPos);
+      userMarker.setLatLng(latlng);
     }
-    // accuracy circle
-    if(userAccuracy) try{ map.removeLayer(userAccuracy);}catch(e){}
-    userAccuracy = L.circle(userPos, { radius: p.coords.accuracy || 50, color:'#60A5FA', fillColor:'#60A5FA', fillOpacity:0.08 }).addTo(map);
-    // fetch weather small (optional)
-    if(OWM_KEY){
-      fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${userPos[0]}&lon=${userPos[1]}&appid=${OWM_KEY}&units=metric`).then(r=>r.json()).then(w=>{
-        const b = document.getElementById('leftPanel');
-        let wb = document.getElementById('weatherBadge');
-        if(!wb){ wb = document.createElement('div'); wb.id='weatherBadge'; wb.style.marginTop='8px'; wb.className='small muted'; b.appendChild(wb); }
-        const rain = (w.rain && w.rain['1h']) ? ` · Rain(1h): ${w.rain['1h']}mm` : '';
-        wb.innerHTML = `Weather: ${w.main.temp}°C · Hum ${w.main.humidity}%${rain}`;
-      }).catch(()=>{});
+    if(!userAccuracy){
+      userAccuracy = L.circle(latlng,{radius:Math.max(accuracy,8),color:'#06b6d4',fillOpacity:0.08}).addTo(map);
+    } else {
+      userAccuracy.setLatLng(latlng).setRadius(Math.max(accuracy,8));
     }
-  }, e=>{ console.warn('geo watch err', e); }, { enableHighAccuracy:true, maximumAge:5000 });
-}
-
-/* ================= ROUTING (GraphHopper primary, ORS fallback) ================= */
-async function ghRoute(points){
-  // points: [[lat,lng], ...]
-  const base = 'https://graphhopper.com/api/1/route';
-  const params = new URLSearchParams();
-  points.forEach(p => params.append('point', `${p[0]},${p[1]}`));
-  params.set('vehicle','car'); params.set('points_encoded','false'); params.set('instructions','false'); params.set('key', GRAPH_HOPPER_KEY);
-  const url = base + '?' + params.toString();
-  const r = await fetch(url);
-  if(!r.ok){ const t = await r.text(); throw new Error('GH '+r.status+': '+t); }
-  return r.json();
-}
-async function orsRoute(points, avoidMulti=null){
-  const base = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
-  const coords = points.map(pt => [pt[1], pt[0]]);
-  const body = { coordinates: coords };
-  if(avoidMulti) body.avoid_polygons = avoidMulti;
-  const res = await fetch(base, { method:'POST', headers:{ 'Authorization': ORS_KEY, 'Content-Type':'application/json' }, body: JSON.stringify(body) });
-  if(!res.ok){ const t = await res.text(); throw new Error('ORS '+res.status+': '+t); }
-  return res.json();
-}
-
-/* ================= FLOODED ROADS storage & render ================= */
-let roadsCache = [], roadLayers = {};
-async function loadAndRenderRoads(){
-  roadsCache = await getAllRecords('roads') || [];
-  Object.values(roadLayers).forEach(l=>{ try{ map.removeLayer(l);}catch(e){} });
-  roadLayers = {};
-  roadsCache.forEach(r=>{
-    const poly = L.polyline(r.coords, { color: getComputedStyle(document.documentElement).getPropertyValue('--danger') || '#ef4444', weight:5, dashArray:'8,8' }).addTo(map);
-    poly.bindPopup('Flooded road (admin)');
-    roadLayers[r.id] = poly;
-  });
-  renderApprovedList();
-}
-
-/* ================= GEO HELPERS ================= */
-function pointToSegmentDistance(pt, A, B){
-  const lat1=A[0]*Math.PI/180, lon1=A[1]*Math.PI/180;
-  const lat2=B[0]*Math.PI/180, lon2=B[1]*Math.PI/180;
-  const lat3=pt[0]*Math.PI/180, lon3=pt[1]*Math.PI/180;
-  const R=6371000;
-  const x1=R*lon1*Math.cos(lat1), y1=R*lat1;
-  const x2=R*lon2*Math.cos(lat2), y2=R*lat2;
-  const x3=R*lon3*Math.cos(lat3), y3=R*lat3;
-  const dx=x2-x1, dy=y2-y1;
-  if(dx===0 && dy===0) return Math.hypot(x3-x1,y3-y1);
-  const t = ((x3-x1)*dx + (y3-y1)*dy) / (dx*dx + dy*dy);
-  const tt = Math.max(0, Math.min(1, t));
-  const xc = x1 + dx*tt, yc = y1 + dy*tt;
-  return Math.hypot(x3-xc, y3-yc);
-}
-
-/* build small circle polygon for ORS avoid */
-function circleToPolygon(center, radiusMeters=30, steps=12){
-  const lat=center[0], lon=center[1];
-  const R=6378137;
-  const coords=[];
-  for(let i=0;i<steps;i++){
-    const brng = (i*(360/steps))*Math.PI/180;
-    const lat2 = Math.asin(Math.sin(lat*Math.PI/180)*Math.cos(radiusMeters/R) + Math.cos(lat*Math.PI/180)*Math.sin(radiusMeters/R)*Math.cos(brng));
-    const lon2 = (lon*Math.PI/180) + Math.atan2(Math.sin(brng)*Math.sin(radiusMeters/R)*Math.cos(lat*Math.PI/180), Math.cos(radiusMeters/R)-Math.sin(lat*Math.PI/180)*Math.sin(lat2));
-    coords.push([ lon2*180/Math.PI, lat2*180/Math.PI ]);
   }
-  coords.push(coords[0]);
-  return [ coords ];
-}
-function buildAvoidMultiFromRoads(roadArray){
-  const multi = { type:'MultiPolygon', coordinates: [] };
-  roadArray.forEach(r=>{
-    r.coords.forEach(pt=>{
-      const poly = circleToPolygon(pt, 35, 12);
-      multi.coordinates.push(poly[0]);
-    });
+
+  // Watch position (live)
+  if(navigator.geolocation){
+    navigator.geolocation.getCurrentPosition(pos=>{
+      onLocationFound(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy);
+    },err=>console.warn('geolocate init err',err),{enableHighAccuracy:true});
+
+    navigator.geolocation.watchPosition(pos=>{
+      onLocationFound(pos.coords.latitude,pos.coords.longitude,pos.coords.accuracy);
+    },err=>console.warn('geolocate watch err',err),{enableHighAccuracy:true,maximumAge:3000,timeout:10000});
+  } else {console.warn('geolocation not supported')}
+
+  // Simple Nominatim search, returns first 8 results
+  async function geocode(query){
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&addressdetails=1&limit=8`;
+    const res = await fetch(url,{headers:{'Accept':'application/json','User-Agent':'FloodAlert/1.0'}});
+    if(!res.ok) throw new Error('Geocode failed');
+    const data = await res.json();
+    return data; // array
+  }
+
+  // UI elements
+  const startInput = document.getElementById('startSearch');
+  const endInput = document.getElementById('endSearch');
+  const goBtn = document.getElementById('goBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const useCurrentBtn = document.getElementById('useCurrent');
+  const infoBox = document.getElementById('info');
+  const weatherBox = document.getElementById('weather');
+
+  // convenience storage
+  let startCoord = null; // [lat, lng]
+  let endCoord = null;
+
+  // allow Enter key to trigger search & suggestion
+  function handleEnter(e, which){
+    if(e.key === 'Enter'){
+      const q = e.target.value.trim();
+      if(!q) return;
+      geocode(q).then(results=>{
+        if(results.length===0) return alert('No places found');
+        // pick first match
+        const r = results[0];
+        const lat = parseFloat(r.lat); const lon = parseFloat(r.lon);
+        if(which==='start'){
+          startCoord = [lat,lon];
+          startInput.value = r.display_name;
+          L.marker([lat,lon]).addTo(map).bindPopup('Start: '+r.display_name).openPopup();
+          map.setView([lat,lon],13);
+        } else {
+          endCoord = [lat,lon];
+          endInput.value = r.display_name;
+          L.marker([lat,lon]).addTo(map).bindPopup('Destination: '+r.display_name).openPopup();
+          map.setView([lat,lon],13);
+        }
+      }).catch(err=>{console.error(err);alert('Search failed')});
+    }
+  }
+  startInput.addEventListener('keydown',e=>handleEnter(e,'start'));
+  endInput.addEventListener('keydown',e=>handleEnter(e,'end'));
+
+  useCurrentBtn.addEventListener('click',()=>{
+    if(userMarker){
+      const latlng = userMarker.getLatLng();
+      startCoord = [latlng.lat,latlng.lng];
+      startInput.value = 'Current location';
+      map.setView(latlng,13);
+      userMarker.openPopup();
+    } else { alert('Waiting for location — allow location permissions.') }
   });
-  return multi;
-}
 
-/* ================= ROUTE UI ================= */
-let mainRouteLayer=null, altRouteLayer=null, dangerLayers=[];
-function clearRouteGraphics(){
-  if(mainRouteLayer) try{ map.removeLayer(mainRouteLayer);}catch(e){}
-  if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
-  dangerLayers.forEach(l=>{ try{ map.removeLayer(l);}catch(e){} });
-  dangerLayers=[];
-  hideBanner();
-  el('takeSafeBtn').style.display='none';
-  el('routeInfo').innerText='';
-}
-function animateDash(layer, speed=90){
-  let off=0; const id = setInterval(()=>{ off=(off+1)%100; try{ layer.setStyle({ dashOffset:String(off) }); }catch(e){} }, speed);
-  layer._ani = id; return id;
-}
-function drawAnimatedPolyline(points, opts){
-  const pl = L.polyline(points, opts).addTo(map);
-  animateDash(pl, 85);
-  return pl;
-}
-function decorateArrows(poly, color){
-  try{ return L.polylineDecorator(poly, { patterns:[{ offset:'6%', repeat:'10%', symbol: L.Symbol.arrowHead({ pixelSize:10, polygon:false, pathOptions:{ stroke:true, weight:2, color } }) }] }).addTo(map); }catch(e){ return null; }
-}
-
-/* detect flooded hits along route */
-function detectFloodHits(routeCoords){
-  const hits = [];
-  roadsCache.forEach(road=>{
-    let seg=null;
-    routeCoords.forEach(pt=>{
-      let near=false;
-      for(let j=0;j<road.coords.length-1;j++){
-        if(pointToSegmentDistance(pt, road.coords[j], road.coords[j+1]) < 25){ near=true; break; }
-      }
-      if(near){ if(!seg) seg=[]; seg.push(pt); } else { if(seg){ hits.push({road, seg}); seg=null; } }
-    });
-    if(seg) hits.push({road, seg});
+  clearBtn.addEventListener('click',()=>{
+    startInput.value='';endInput.value='';startCoord=null;endCoord=null;infoBox.innerHTML='Cleared.';
+    if(routeLayer){map.removeLayer(routeLayer);routeLayer=null}
+    if(altRouteLayer){map.removeLayer(altRouteLayer);altRouteLayer=null}
+    if(floodLayer){map.removeLayer(floodLayer);floodLayer=null}
+    if(startArrow){map.removeLayer(startArrow);startArrow=null}
+    if(endMarker){map.removeLayer(endMarker);endMarker=null}
+    weatherBox.innerText='—';
   });
-  return hits;
-}
 
-/* main calculate route */
-async function calculateAndShow(){
-  try{
-    clearRouteGraphics();
-    showBanner('Loading route — please wait...');
-    const sVal = el('startInput').value.trim();
-    const eVal = el('endInput').value.trim();
-    if(!sVal || !eVal){ alert('Enter start and destination'); hideBanner(); return; }
-    const start = await resolvePlace(sVal, el('startInput'));
-    const dest = await resolvePlace(eVal, el('endInput'));
-    if(!start || !dest){ alert('Could not resolve places'); hideBanner(); return; }
+  // Compute route using OpenRouteService (driving-car)
+  async function getRoute(coords){
+    const url = 'https://api.openrouteservice.org/v2/directions/driving-car/geojson';
+    const body = {coordinates: coords};
+    const res = await fetch(url,{method:'POST',headers:{'Authorization':OPENROUTESERVICE_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
+    if(!res.ok) throw new Error('ORS route failed');
+    const data = await res.json();
+    return data;
+  }
 
-    // try GraphHopper
-    let coords = [], mainInfo = '';
+  // draw route and decorations
+  function drawRoute(coordinates){ // coords array of [lat,lng]
+    if(routeLayer) map.removeLayer(routeLayer);
+    routeLayer = L.polyline(coordinates,{weight:6,opacity:0.95}).addTo(map);
+
+    // animated ant path on top
+    L.antPath(coordinates,{delay:400,paused:false,hardwareAccelerated:true}).addTo(map);
+
+    // decorate with arrows using polylineDecorator
+    if(startArrow) map.removeLayer(startArrow);
+    startArrow = L.polylineDecorator(routeLayer,{
+      patterns:[{offset:0,repeat:0, symbol:L.Symbol.arrowHead({pixelSize:16,polygon:false,pathOptions:{stroke:true, color:'#0ea5a4',weight:2}})}]
+    }).addTo(map);
+
+    map.fitBounds(routeLayer.getBounds(),{padding:[60,60]});
+  }
+
+  function drawAltRoute(coordinates){
+    if(altRouteLayer) map.removeLayer(altRouteLayer);
+    altRouteLayer = L.polyline(coordinates,{weight:5,opacity:0.9,dashArray:'10,8'}).addTo(map);
+  }
+
+  function drawFlood(segment){
+    if(floodLayer) map.removeLayer(floodLayer);
+    floodLayer = L.polyline(segment,{color:'#ef4444',weight:8,opacity:0.95,dashArray:'6,8'}).addTo(map);
+  }
+
+  // fetch weather for lat/lng
+  async function fetchWeather(lat,lng){
     try{
-      const g = await ghRoute([start, dest]);
-      coords = g.paths[0].points.coordinates.map(c=>[c[1], c[0]]);
-      mainInfo = `Main: ${(g.paths[0].distance/1000).toFixed(2)} km · ${(g.paths[0].time/60000).toFixed(1)} min`;
-    }catch(e){
-      console.warn('GH fail', e);
+      const r = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_KEY}&units=metric`);
+      if(!r.ok) throw new Error('weather failed');
+      const d = await r.json();
+      weatherBox.innerText = `${d.weather[0].description}, ${d.main.temp}°C`;
+    }catch(e){console.warn(e);weatherBox.innerText='—'}
+  }
+
+  // main route flow
+  goBtn.addEventListener('click',async ()=>{
+    try{
+      // accept either typed geocoded coords or 'Current location'
+      if(startInput.value.trim().toLowerCase()==='current location' && userMarker){
+        const p = userMarker.getLatLng(); startCoord=[p.lat,p.lng];
+      }
+      if(!startCoord){
+        // attempt geocode the typed string
+        if(startInput.value.trim()){
+          const res = await geocode(startInput.value.trim());
+          if(res.length===0) return alert('Start place not found');
+          startCoord=[parseFloat(res[0].lat),parseFloat(res[0].lon)];
+        } else return alert('Add a start location');
+      }
+      if(!endCoord){
+        if(endInput.value.trim()){
+          const res = await geocode(endInput.value.trim());
+          if(res.length===0) return alert('End place not found');
+          endCoord=[parseFloat(res[0].lat),parseFloat(res[0].lon)];
+        } else return alert('Add a destination');
+      }
+
+      infoBox.innerHTML='Calculating route...';
+
+      // ORS needs coords in [lng,lat]
+      const orsCoords = [[startCoord[1],startCoord[0]],[endCoord[1],endCoord[0]]];
+      const routeData = await getRoute(orsCoords);
+
+      const coords = routeData.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+      drawRoute(coords);
+
+      // show start arrow & end marker
+      if(endMarker) map.removeLayer(endMarker);
+      endMarker = L.marker(endCoord,endIcon).addTo(map).bindPopup('Destination').openPopup();
+
+      // compute summary
+      const summary = routeData.features[0].properties.summary;
+      const distanceKm = (summary.distance/1000).toFixed(2);
+      const durationMin = (summary.duration/60).toFixed(1);
+      const avgSpeed = ((summary.distance/summary.duration)*3.6).toFixed(1);
+      infoBox.innerHTML = `<strong>Distance:</strong> ${distanceKm} km<br><strong>Duration:</strong> ${durationMin} min<br><strong>Avg speed:</strong> ${avgSpeed} km/h`;
+
+      // fetch weather at start
+      fetchWeather(startCoord[0],startCoord[1]);
+
+      // simulate flood segment as a mid-segment of route (replace with real flood geometry if available)
+      const mid = Math.floor(coords.length/2);
+      const floodSegment = coords.slice(Math.max(0,mid-3),Math.min(coords.length,mid+3));
+      drawFlood(floodSegment);
+
+      // build an avoid polygon for ORS: use floodSegment reversed into [lng,lat]
+      const polyCoords = floodSegment.map(c=>[c[1],c[0]]);
+      // duplicate first at end to close polygon (small buffer):
+      if(polyCoords.length>2) polyCoords.push(polyCoords[0]);
+
+      // request alternative route avoiding the flood polygon
       try{
-        const o = await orsRoute([start, dest]);
-        coords = o.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-        const s = o.features[0].properties.summary || {};
-        mainInfo = `Main: ${(s.distance/1000||0).toFixed(2)} km · ${((s.duration||0)/60).toFixed(1)} min`;
-      }catch(er){
-        console.error('Both routing failed', er);
-        alert('Route fetch failed — check API keys & network (see console)');
-        hideBanner();
-        return;
-      }
-    }
+        const altBody = {coordinates: [[startCoord[1],startCoord[0]],[endCoord[1],endCoord[0]]],avoid_polygons:{type:'Polygon',coordinates:[polyCoords]}};
+        const altRes = await fetch('https://api.openrouteservice.org/v2/directions/driving-car/geojson',{method:'POST',headers:{'Authorization':OPENROUTESERVICE_KEY,'Content-Type':'application/json'},body:JSON.stringify(altBody)});
+        if(altRes.ok){
+          const altData = await altRes.json();
+          const altCoords = altData.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
+          drawAltRoute(altCoords);
+        } else {
+          console.warn('Alt route not returned',await altRes.text());
+        }
+      }catch(e){console.warn('Alt route failed',e)}
 
-    mainRouteLayer = L.polyline(coords, { color:'#1e40af', weight:6 }).addTo(map);
-    decorateArrows(mainRouteLayer, '#1e40af'); animateDash(mainRouteLayer, 120);
-    map.fitBounds(mainRouteLayer.getBounds(), { padding:[80,80] });
-    el('routeInfo').innerText = mainInfo;
-
-    const hits = detectFloodHits(coords);
-    if(hits.length > 0){
-      hits.forEach(h=>{
-        const l = drawAnimatedPolyline(h.seg, { color:'#ef4444', weight:6, dashArray:'10,8' });
-        dangerLayers.push(l);
-      });
-      showBanner('⚠️ Flooded road detected — click here to generate safe alternate', ()=> generateSafeAlternate(coords, start, dest));
-      el('takeSafeBtn').style.display='inline-block';
-      el('takeSafeBtn').onclick = ()=> generateSafeAlternate(coords, start, dest);
-    } else {
-      el('routeInfo').innerText += ' · No flooded roads on route';
-      hideBanner();
-    }
-  }catch(e){ console.error('calc err', e); alert('Route calculation error'); hideBanner();}
-}
-
-/* safe alternate via ORS avoid_polygons (preferred), fallback GH detour */
-async function generateSafeAlternate(routeCoords, start, dest){
-  try{
-    showBanner('Generating safe alternate — please wait...');
-    const hits = detectFloodHits(routeCoords);
-    const affectedIds = Array.from(new Set(hits.map(h=>h.road.id)));
-    const affected = affectedIds.map(id=> roadsCache.find(r=>r.id===id)).filter(Boolean);
-    if(affected.length === 0){ alert('No affected roads found'); hideBanner(); return; }
-    const avoidMulti = buildAvoidMultiFromRoads(affected);
-
-    try{
-      const or = await orsRoute([start, dest], avoidMulti);
-      const altCoords = or.features[0].geometry.coordinates.map(c=>[c[1],c[0]]);
-      if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
-      altRouteLayer = L.polyline(altCoords, { color:getComputedStyle(document.documentElement).getPropertyValue('--safe') || '#60A5FA', weight:6 }).addTo(map);
-      animateDash(altRouteLayer, 100); decorateArrows(altRouteLayer, getComputedStyle(document.documentElement).getPropertyValue('--safe') || '#60A5FA');
-      map.fitBounds(altRouteLayer.getBounds(), { padding:[80,80] });
-      el('routeInfo').innerText += ' · Safe alternate (ORS avoid) shown';
-      hideBanner();
-      // make take safe swap
-      el('takeSafeBtn').onclick = ()=> { if(mainRouteLayer) try{ map.removeLayer(mainRouteLayer);}catch(e){} mainRouteLayer=null; if(altRouteLayer) altRouteLayer.setStyle({ color:'#3b82f6', weight:7 }); hideBanner(); };
-      return;
-    }catch(e){
-      console.warn('ORS avoid failed', e);
-      // fallback GH detour: try detour left/right around midpoint of first hit
-      const hit = hits[0];
-      const mid = hit.seg[Math.floor(hit.seg.length/2)];
-      const meters = 220;
-      const dLat = meters/111000;
-      const left = [ mid[0] + dLat, mid[1] - dLat ];
-      const right = [ mid[0] - dLat, mid[1] + dLat ];
-      const candidates = [ [start, left, dest], [start, right, dest] ];
-      let best = null;
-      for(const pts of candidates){
-        try{
-          const g = await ghRoute(pts);
-          if(g.paths && g.paths.length>0){
-            const c = g.paths[0].points.coordinates.map(cc=>[cc[1],cc[0]]);
-            const t = g.paths[0].time;
-            if(!best || t < best.time) best = { coords:c, time:t };
-          }
-        }catch(err){ console.warn('GH detour fail', err); }
-      }
-      if(best){
-        if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
-        altRouteLayer = L.polyline(best.coords, { color:getComputedStyle(document.documentElement).getPropertyValue('--safe') || '#60A5FA', weight:6 }).addTo(map);
-        animateDash(altRouteLayer, 100);
-        decorateArrows(altRouteLayer, getComputedStyle(document.documentElement).getPropertyValue('--safe') || '#60A5FA');
-        map.fitBounds(altRouteLayer.getBounds(), { padding:[80,80] });
-        el('routeInfo').innerText += ' · Safe alternate (detour) shown';
-        hideBanner();
-        return;
-      }
-      throw new Error('No alternate found');
-    }
-  }catch(e){ console.error('generate alt err', e); alert('Could not generate safe alternate'); hideBanner(); }
-}
-
-/* ================= REPORT pick on map ================= */
-let reportPickMode=false, reportPoints=[], tempPreview=null;
-el('reportBtn').addEventListener('click', ()=>{ el('reportModal').style.display='flex'; reportPickMode=false; reportPoints=[]; clearTempPreview(); });
-el('closeReportBtn').addEventListener('click', ()=>{ el('reportModal').style.display='none'; reportPickMode=false; reportPoints=[]; clearTempPreview(); });
-
-el('pickOnMapBtn').addEventListener('click', ()=>{ alert('Click START then END on map (two clicks).'); reportPickMode=true; reportPoints=[]; clearTempPreview(); });
-
-map.on('click', async (e)=>{
-  if(reportPickMode){
-    if(reportPoints.length===0){
-      reportPoints[0]=[e.latlng.lat,e.latlng.lng];
-      tempPreview = L.marker(reportPoints[0]).addTo(map);
-      alert('Start set. Now click END point.');
-    } else if(reportPoints.length===1){
-      reportPoints[1]=[e.latlng.lat,e.latlng.lng];
-      if(tempPreview) try{ map.removeLayer(tempPreview);}catch(e){}
-      tempPreview = L.polyline(reportPoints, { color:'#f97316', weight:4, dashArray:'6,6' }).addTo(map);
-      reportPickMode=false;
-      alert('END set. Click Submit to send report.');
-    }
-  }
-});
-
-el('submitReportBtn').addEventListener('click', async ()=>{
-  const val = el('reportCoords').value.trim();
-  let coords = null;
-  if(val){
-    const parts = val.split(';').map(s=>s.trim()).filter(Boolean);
-    if(parts.length>=2){
-      coords = parts.slice(0,2).map(p=>{ const m = p.match(/(-?\d+(\.\d+)?)\s*[,;]\s*(-?\d+(\.\d+)?)/); return [parseFloat(m[1]), parseFloat(m[3])]; });
-    }
-  }
-  if(!coords && reportPoints.length===2) coords = reportPoints.slice();
-  if(!coords || coords.length<2){ alert('Select points or paste coords'); return; }
-  const rep = { id: genId(), type:'road', coords, text:'user-report', time: Date.now(), status:'pending' };
-  await addRecord('reports', rep);
-  alert('Report submitted for admin review');
-  el('reportModal').style.display='none';
-  clearTempPreview(); await refreshAdminLists();
-});
-
-function clearTempPreview(){ if(tempPreview) try{ map.removeLayer(tempPreview);}catch(e){} tempPreview=null; reportPoints=[]; reportPickMode=false; el('reportCoords').value=''; }
-
-/* ================= ADMIN ================= */
-async function sha256Hex(str){
-  const enc = new TextEncoder().encode(str);
-  const h = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(h)).map(b=>b.toString(16).padStart(2,'0')).join('');
-}
-async function ensureAdminHash(){
-  if(!localStorage.getItem('flood_admin_hash')){
-    const h = await sha256Hex('admin123' + ADMIN_SALT);
-    localStorage.setItem('flood_admin_hash', h);
-  }
-}
-async function checkAdminLogin(user, pass){
-  const stored = localStorage.getItem('flood_admin_hash'); if(!stored) return false;
-  const hh = await sha256Hex(pass + ADMIN_SALT);
-  return user === ADMIN_USER && hh === stored;
-}
-async function changeAdminPasswordFlow(){
-  const cur = prompt('Enter current admin password:');
-  if(!cur) return;
-  const ok = await checkAdminLogin(ADMIN_USER, cur);
-  if(!ok){ alert('Current password wrong'); return; }
-  const nw = prompt('Enter new strong password (min 8 chars):');
-  if(!nw || nw.length<8){ alert('Password too short'); return; }
-  const nh = await sha256Hex(nw + ADMIN_SALT); localStorage.setItem('flood_admin_hash', nh); alert('Password changed');
-}
-
-/* admin login wiring */
-el('adminLogin').addEventListener('click', async ()=>{
-  const u = el('adminUser').value.trim() || ADMIN_USER; const p = el('adminPass').value;
-  if(await checkAdminLogin(u,p)){ el('adminArea').style.display='block'; await refreshAdminLists(); await loadAndRenderRoads(); alert('Admin logged in'); } else alert('Wrong credentials');
-});
-el('changePass').addEventListener('click', changeAdminPasswordFlow);
-
-/* refresh admin lists */
-async function refreshAdminLists(){
-  const reps = await getAllRecords('reports') || [];
-  const list = el('pendingList'); list.innerHTML = '';
-  if(reps.length===0){ list.innerHTML = '<div class="small muted">No pending reports</div>'; return; }
-  reps.forEach(r=>{
-    if(r.status && r.status!=='pending') return;
-    const div = document.createElement('div'); div.style.padding='8px'; div.style.borderBottom='1px solid rgba(255,255,255,0.03)';
-    div.innerHTML = `<b>Road report</b><br><small>${new Date(r.time).toLocaleString()}</small>`;
-    const preview = document.createElement('button'); preview.className='smallBtn'; preview.style.marginLeft='8px'; preview.innerText='Preview';
-    preview.onclick = ()=>{ if(window._preview) try{ map.removeLayer(window._preview);}catch(e){} window._preview = L.polyline(r.coords, { color:'#f97316', weight:5, dashArray:'6,6' }).addTo(map); map.fitBounds(window._preview.getBounds(), { padding:[60,60] }); };
-    const approve = document.createElement('button'); approve.className='smallBtn'; approve.style.marginLeft='8px'; approve.style.background='#16a34a'; approve.innerText='Approve';
-    approve.onclick = async ()=>{ await addRecord('roads', { id: genId(), coords: r.coords }); await deleteRecord('reports', r.id); await loadAndRenderRoads(); await refreshAdminLists(); alert('Approved'); };
-    const reject = document.createElement('button'); reject.className='smallBtn'; reject.style.marginLeft='8px'; reject.style.background='#b91c1c'; reject.innerText='Reject';
-    reject.onclick = async ()=>{ await deleteRecord('reports', r.id); await refreshAdminLists(); alert('Rejected'); };
-    div.appendChild(preview); div.appendChild(approve); div.appendChild(reject);
-    list.appendChild(div);
+    }catch(e){console.error(e);alert('Route failed: '+(e.message||e))}
   });
-}
 
-/* render approved roads list */
-async function renderApprovedList(){
-  const container = el('approvedList'); if(!container) return;
-  const roads = await getAllRecords('roads') || [];
-  container.innerHTML = '';
-  if(roads.length===0){ container.innerHTML = '<div class="small muted">No approved flooded roads</div>'; return; }
-  roads.forEach(r=>{
-    const row = document.createElement('div'); row.style.padding='8px'; row.style.borderBottom='1px solid rgba(255,255,255,0.03)'; row.className='small muted';
-    row.innerHTML = `<b>Road</b> — ${r.coords.length} pts`;
-    const rm = document.createElement('button'); rm.className='smallBtn'; rm.style.float='right'; rm.style.background='#b91c1c'; rm.innerText='Remove';
-    rm.onclick = async ()=>{ await deleteRecord('roads', r.id); await loadAndRenderRoads(); alert('Removed'); };
-    row.appendChild(rm); container.appendChild(row);
+  // prevent zooming/panning out of trivandrum bounds by listening to moveend
+  map.on('moveend',()=>{
+    if(!trivandrumBounds.contains(map.getCenter())){
+      // snap back to bounds
+      map.panInsideBounds(trivandrumBounds,{animate:true});
+    }
   });
-}
 
-/* ================= resolve place util ================= */
-async function resolvePlace(text, inputEl){
-  if(!text) return null;
-  if(text.toLowerCase().includes('current') && userPos) return userPos;
-  if(inputEl && inputEl._latlng) return inputEl._latlng;
-  const m = text.match(/(-?\d+(\.\d+)?)\s*[,;]\s*(-?\d+(\.\d+)?)/);
-  if(m) return [parseFloat(m[1]), parseFloat(m[3])];
-  const res = await nominatim(text);
-  if(res && res.length>0) return [parseFloat(res[0].lat), parseFloat(res[0].lon)];
-  return null;
-}
+  // keep user's location always visible by listening to position updates
+  setInterval(()=>{
+    if(userMarker){
+      const latlng = userMarker.getLatLng();
+      // small auto-pan if user is close to edge
+      const px = map.latLngToContainerPoint(latlng);
+      const w = map.getSize();
+      if(px.x<80||px.x>w.x-80||px.y<80||px.y>w.y-80){
+        map.panTo(latlng,{animate:true});
+      }
+    }
+  },3500);
 
-/* ================= demo seed & startup ================= */
-async function seedDemoOnce(){
-  const r = await getAllRecords('roads');
-  if(r && r.length>0) return;
-  const demo = [
-    { id: genId(), coords:[[8.5280,76.9350],[8.5285,76.9370]] },
-    { id: genId(), coords:[[8.5150,76.9550],[8.5160,76.9560]] },
-    { id: genId(), coords:[[8.5030,76.9300],[8.5045,76.9315]] },
-    { id: genId(), coords:[[8.5440,76.9000],[8.5430,76.9020]] },
-    { id: genId(), coords:[[8.4900,76.9800],[8.4920,76.9815]] },
-    { id: genId(), coords:[[8.5350,76.9200],[8.5335,76.9220]] },
-    { id: genId(), coords:[[8.5170,76.9200],[8.5185,76.9215]] },
-    { id: genId(), coords:[[8.5600,76.8900],[8.5585,76.8920]] },
-    { id: genId(), coords:[[8.4950,76.9470],[8.4965,76.9485]] },
-    { id: genId(), coords:[[8.5020,76.9650],[8.5035,76.9660]] }
-  ];
-  for(const d of demo) try{ await addRecord('roads', d); }catch(e){}
-}
+  // initial attribution & tips
+  infoBox.innerHTML='Ready — type a start and destination, or press 📍 to use your current location.';
 
-/* ================= UI wiring ================= */
-el('useCurrent').addEventListener('click', ()=>{ if(userPos){ el('startInput').value='Current location'; el('startInput')._latlng = userPos; } else alert('Allow location'); });
-el('findBtn').addEventListener('click', calculateAndShow);
-el('reportBtn').addEventListener('click', ()=>{ el('reportModal').style.display='flex'; });
-el('closeReportBtn').addEventListener('click', ()=>{ el('reportModal').style.display='none'; });
-el('settingsBtn').addEventListener('click', ()=>{ el('settingsModal').style.display='flex'; });
-el('closeSettings').addEventListener('click', ()=>{ el('settingsModal').style.display='none'; });
-el('toggleTheme').addEventListener('click', ()=>{ document.body.classList.toggle('light'); if(document.body.classList.contains('light')){ if(map.hasLayer(darkTiles)) map.removeLayer(darkTiles); baseTiles.addTo(map);} else { if(map.hasLayer(baseTiles)) map.removeLayer(baseTiles); darkTiles.addTo(map);} });
-el('resetView').addEventListener('click', ()=> map.setView([8.5241,76.9366],13));
-el('pickOnMapBtn').addEventListener('click', ()=>{ alert('Pick START then END on map'); reportPickMode=true; reportPoints=[]; clearTempPreview(); });
-el('takeSafeBtn').addEventListener('click', ()=>{ /* handled dynamically */ });
-
-/* ================= initial startup ================= */
-(async function init(){
-  await openDB();
-  await ensureAdminHash();
-  await seedDemoOnce();
-  await loadAndRenderRoads();
-  await refreshAdminLists();
-  // reposition suggestion boxes initially
-  setTimeout(()=>{ positionSuggest(el('startInput'), el('startSuggest')); positionSuggest(el('endInput'), el('endSuggest')); }, 500);
-})();
 </script>
+
 </body>
 </html>
