@@ -12,8 +12,8 @@
 <style>
 :root{
   --bg:#0f1720; --panel:#0b1220; --text:#e6eef6; --muted:#9fb0c8;
-  --accent:#16a34a; --danger:#ef4444; --safe:#9ae6b4; /* light green for safe button */
-  --safe-dark:#28c76f;
+  --accent:#16a34a; --danger:#ef4444; --safe:#166534; /* dark green for safe */
+  --safe-light:#9ae6b4;
 }
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden}
@@ -74,7 +74,6 @@ th{ color:var(--muted); font-weight:700 }
 .tag{ display:inline-block;padding:4px 8px;border-radius:8px;background:#111827;color:var(--muted);font-size:12px;margin-right:6px }
 .urgent{ background:#f97316;color:#042; padding:4px 8px;border-radius:8px }
 
-/* responsive small */
 @media (max-width:760px){ #leftPanel{ width:92%; left:4% } #adminDrawer{ width:92% } }
 </style>
 </head>
@@ -96,7 +95,7 @@ th{ color:var(--muted); font-weight:700 }
 
     <div style="display:flex;gap:8px;margin-top:6px">
       <button id="getRouteBtn" class="btn">Get Route</button>
-      <button id="findSafeBtn" class="btn" style="background:var(--safe); color:#042; display:none">Find Fast & Safe Route</button>
+      <button id="findSafeBtn" class="btn" style="background:var(--safe); color:#fff; display:none">Find Fast & Safe Route</button>
     </div>
 
     <div id="routeInfo" class="small" style="margin-top:8px"></div>
@@ -147,7 +146,7 @@ th{ color:var(--muted); font-weight:700 }
           <div><b>Pending Reports</b> <span id="pendingCount" class="tag">0</span></div>
           <div>
             <input id="adminSearch" class="input" placeholder="Search notes/date" style="width:220px;display:inline-block">
-            <button id="bulkApproveBtn" class="btn" style="background:var(--safe); color:#042">Approve Selected</button>
+            <button id="bulkApproveBtn" class="btn" style="background:var(--safe); color:#fff">Approve Selected</button>
             <button id="logoutAdminBtn" class="smallBtn" style="background:#b91c1c">Logout</button>
           </div>
         </div>
@@ -187,7 +186,7 @@ th{ color:var(--muted); font-weight:700 }
   </div>
 
   <!-- Report modal (small) -->
-  <div id="reportModal" class="modal">
+  <div id="reportModal" class="modal" style="display:none">
     <div class="panel" style="width:520px">
       <h3 style="margin-top:0">Report Flooded Road</h3>
       <p class="small">Pick points on map along the flooded stretch (2+ points). Click <b>Finish Report</b> to submit (admin will review).</p>
@@ -236,11 +235,15 @@ async function recordActivity(text){
   renderActivity();
 }
 
-/* ================== MAP INIT ================== */
+/* ================== MAP INIT & Icons ================== */
 const bounds = L.latLngBounds([8.3,76.7],[8.7,77.2]);
 const map = L.map('map',{minZoom:11,maxZoom:18,maxBounds:bounds}).setView([8.5241,76.9366],13);
 const base = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 if(OWM_KEY) L.tileLayer(`https://tile.openweathermap.org/map/precipitation_new/{z}/{x}/{y}.png?appid=${OWM_KEY}`,{opacity:0.55}).addTo(map);
+
+/* icon markers for start/end */
+const startIcon = L.divIcon({ className: 'start-icon', html: `<div style="background:#2563eb;border-radius:50%;width:18px;height:18px;border:3px solid white"></div>`, iconSize:[24,24], iconAnchor:[12,24]});
+const endIcon = L.divIcon({ className: 'end-icon', html: `<div style="background:#ef4444;border-radius:50%;width:18px;height:18px;border:3px solid white"></div>`, iconSize:[24,24], iconAnchor:[12,24]});
 
 /* ================== Suggestion UI (Nominatim) ================== */
 async function nominatim(q){
@@ -315,7 +318,7 @@ async function renderRoadsList(){
 
 /* ================== REPORT FLOW ================== */
 let reportPickMode=false, reportDrawPts=[], reportPreview=null, lastSubmittedId=null, undoTimer=null;
-document.getElementById('reportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='flex'; });
+document.getElementById('reportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='block'; });
 document.getElementById('closeReportBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='none'; });
 document.getElementById('pickRoadBtn').addEventListener('click', ()=>{ document.getElementById('reportModal').style.display='none'; startPickMode(); });
 
@@ -408,10 +411,20 @@ async function osrmRoute(start, dest, via=null){
 }
 
 /* routing UI state */
-let mainRouteLayer = null, altRouteLayer = null, floodedSegments = [];
+let mainRouteLayer = null, altRouteLayer = null, floodedSegments = [], startMarker=null, endMarker=null;
 
+/* place start/end markers helper */
+function setStartEndMarkers(startCoords, endCoords){
+  if(startMarker) try{ map.removeLayer(startMarker);}catch(e){}
+  if(endMarker) try{ map.removeLayer(endMarker);}catch(e){}
+  startMarker = L.marker(startCoords, {icon:startIcon}).addTo(map).bindPopup('Start');
+  endMarker = L.marker(endCoords, {icon:endIcon}).addTo(map).bindPopup('Destination');
+}
+
+/* GET ROUTE: show main, detect floods, and AUTO-APPLY safe alternate (divert) */
 document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
   try{
+    // cleanup
     if(mainRouteLayer) try{ map.removeLayer(mainRouteLayer);}catch(e){}
     if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
     floodedSegments.forEach(l=>{ try{ map.removeLayer(l);}catch(e){} }); floodedSegments=[];
@@ -425,8 +438,12 @@ document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
     const dest = await resolvePlace(eVal, document.getElementById('endInput'));
     if(!start || !dest){ alert('Could not resolve places'); document.getElementById('routeInfo').innerText=''; return; }
 
+    // set start/end icons
+    setStartEndMarkers(start, dest);
+
+    // main route
     const main = await osrmRoute(start, dest);
-    mainRouteLayer = L.polyline(main.coords, { color:'#1e40af', weight:6 }).addTo(map);
+    mainRouteLayer = L.polyline(main.coords, { color:'#1e40af', weight:6, opacity:0.9 }).addTo(map);
     map.fitBounds(mainRouteLayer.getBounds(), { padding:[60,60] });
     document.getElementById('routeInfo').innerText = `Route: ${(main.distance/1000).toFixed(2)} km · ${(main.duration/60).toFixed(1)} min`;
 
@@ -438,42 +455,32 @@ document.getElementById('getRouteBtn').addEventListener('click', async ()=>{
         const l = L.polyline(h.seg, { color:'var(--danger)', weight:6, dashArray:'10,8' }).addTo(map);
         floodedSegments.push(l);
       });
-      document.getElementById('routeInfo').innerText += ' · Flood detected on route';
+      document.getElementById('routeInfo').innerText += ' · Flood detected on route — diverting to safe alternate';
+      // auto-generate safe alternate and apply (divert)
+      await generateSafeAlternateAndApply(main.coords, start, dest);
       document.getElementById('findSafeBtn').style.display='inline-block';
-      document.getElementById('findSafeBtn').onclick = ()=> generateSafeAlternate(main.coords, start, dest);
+      document.getElementById('findSafeBtn').onclick = ()=> generateSafeAlternateAndApply(main.coords, start, dest);
     } else {
-      document.getElementById('routeInfo').innerText += ' · No flooded roads';
+      document.getElementById('routeInfo').innerText += ' · No flooded roads on route';
     }
   }catch(e){ console.error(e); alert('Route error: '+(e.message||e)); document.getElementById('routeInfo').innerText=''; }
 });
 
-/* generate detour that avoids flooded segment and rejoins after flood end */
-async function generateSafeAlternate(mainCoords, start, dest){
+/* GENERATE safe alternate and automatically apply (divert) */
+async function generateSafeAlternateAndApply(mainCoords, start, dest){
   try{
     document.getElementById('routeInfo').innerText = 'Generating safe alternate...';
     if(!mainCoords || mainCoords.length===0) return alert('No main route');
     const hits = detectFloodHitsOnRoute(mainCoords);
     if(hits.length===0) return alert('No flooded segments to avoid');
-    // take first hit, find entry index and exit index on mainCoords
-    const hit = hits[0];
-    // find index of first and last points of hit in mainCoords by distance threshold
-    const thresh = 20;
-    let entryIndex = -1, exitIndex = -1;
-    for(let i=0;i<mainCoords.length;i++){
-      if(entryIndex===-1 && hit.seg.some(pt => Math.hypot((pt[0]-mainCoords[i][0]), (pt[1]-mainCoords[i][1])) < 0.0005)) entryIndex = i;
-      if(entryIndex!==-1 && hit.seg.every(pt => Math.hypot((pt[0]-mainCoords[i][0]), (pt[1]-mainCoords[i][1])) > 0.0005)){ exitIndex = i; break; }
-    }
-    if(entryIndex === -1) entryIndex = 0;
-    if(exitIndex === -1) exitIndex = mainCoords.length-1;
-    const beforePoint = mainCoords[Math.max(0, entryIndex-1)];
-    const afterPoint = mainCoords[Math.min(mainCoords.length-1, exitIndex+1)];
 
-    // create two candidate via points by offsetting perpendicular
-    const midIdx = Math.floor((entryIndex + exitIndex) / 2);
-    const mid = mainCoords[midIdx];
-    // offset in degrees ~ meters/111000
-    const offsetM = 250;
-    const offDeg = offsetM / 111000;
+    // compute mid of first hit
+    const hit = hits[0];
+    // find approximate mid index on mainCoords that is closest to a hit point
+    let mid = hit.seg[Math.floor(hit.seg.length/2)];
+    // offset candidates left/right
+    const offsetMeters = 250; // detour distance
+    const offDeg = offsetMeters / 111000;
     const left = [ mid[0] + offDeg, mid[1] - offDeg ];
     const right = [ mid[0] - offDeg, mid[1] + offDeg ];
     const candidates = [left, right];
@@ -487,13 +494,15 @@ async function generateSafeAlternate(mainCoords, start, dest){
         if(!best || res.duration < best.duration) best = res;
       }catch(err){ console.warn('via failed', err); }
     }
-    if(!best) return alert('No alternate found');
+    if(!best) return alert('No alternate route found');
+
+    // show alternate, fade original main (so user sees diversion)
+    if(mainRouteLayer) mainRouteLayer.setStyle({ color:'#1e40af', weight:4, opacity:0.5 });
     if(altRouteLayer) try{ map.removeLayer(altRouteLayer);}catch(e){}
     altRouteLayer = L.polyline(best.coords, { color: 'var(--safe)', weight:6 }).addTo(map);
     map.fitBounds(altRouteLayer.getBounds(), { padding:[60,60] });
     document.getElementById('routeInfo').innerText = `Safe alternate: ${(best.distance/1000).toFixed(2)} km · ${(best.duration/60).toFixed(1)} min`;
-    // Optionally remove main route to focus on alternate
-  }catch(e){ console.error(e); alert('Safe alternate error'); }
+  }catch(e){ console.error(e); alert('Safe alternate error: '+(e.message||e)); }
 }
 
 /* ================== resolve place helper ================== */
@@ -509,7 +518,7 @@ async function resolvePlace(text, inputEl){
 }
 document.getElementById('useCurrentBtn').addEventListener('click', ()=>{ if(userPos){ document.getElementById('startInput').value='Current location'; document.getElementById('startInput')._latlng = userPos; } else alert('Allow location'); });
 
-/* ================== ADMIN DRAWER wiring ================== */
+/* ================== ADMIN DRAWER wiring & logic ================== */
 document.getElementById('toggleAdminBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.toggle('open'); });
 document.getElementById('closeDrawerBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.remove('open'); });
 document.getElementById('openLoginBtn').addEventListener('click', ()=>{ document.getElementById('adminDrawer').classList.add('open'); document.getElementById('adminLoginBox').scrollIntoView(); });
@@ -517,10 +526,8 @@ document.getElementById('adminCancelLogin').addEventListener('click', ()=>{ docu
 
 const ADMIN_ID = 'admin', ADMIN_PASS = 'admin';
 document.getElementById('adminLoginBtn').addEventListener('click', async ()=>{
-  const id = document.getElementById('adminId').value.trim();
-  const pw = document.getElementById('adminPass').value;
+  const id = document.getElementById('adminId').value.trim(), pw = document.getElementById('adminPass').value;
   if(id===ADMIN_ID && pw===ADMIN_PASS){
-    // show admin panel inside drawer
     document.getElementById('adminLoginBox').style.display='none';
     document.getElementById('adminPanelMain').style.display='block';
     await renderAdminData();
@@ -591,7 +598,7 @@ async function refreshPendingCount(){ const reps = await getAll('reports') || []
 /* render activity */
 async function renderActivity(){ const meta = await getAll('meta') || []; const a = (meta.find(x=>x.k==='activityLog') || {k:'activityLog', v:[]}).v || []; const el = document.getElementById('activityList'); el.innerHTML=''; a.slice(0,200).forEach(it=>{ const d = document.createElement('div'); d.style.padding='6px'; d.style.borderBottom='1px solid rgba(255,255,255,0.03)'; d.innerHTML = `<div style="font-size:12px;color:var(--muted)">${nowStr(it.time)}</div><div>${it.text}</div>`; el.appendChild(d); }); }
 
-/* ================== init (seed data) ================== */
+/* ================== init & seed ================== */
 (async function init(){
   const meta = await getAll('meta') || [];
   if(!meta.find(x=>x.k==='activityLog')) await putItem('meta', {k:'activityLog', v:[]});
@@ -611,8 +618,6 @@ function positionSuggest(inputEl, boxEl){
   boxEl.style.top = (r.bottom + window.scrollY + 6) + 'px';
   boxEl.style.width = r.width + 'px';
 }
-
-/* ================== END ================== */
 </script>
 </body>
 </html>
