@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Flood Alert — Admin</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<style>
+  :root{ --bg:#071225; --panel:#071a27; --muted:#98a8b9; --accent:#0ea5a9; --danger:#ef4444; --safe:#22c55e; --text:#e6eef6; }
+  html,body{height:100%;margin:0;font-family:Inter,Segoe UI,Arial,Helvetica,sans-serif;background:var(--bg);color:var(--text)}
+  .wrap{display:flex;gap:12px;height:100%;padding:16px}
+  .left{width:520px;max-width:40%;min-width:320px;overflow:auto}
+  .right{flex:1;border-radius:8px;overflow:hidden}
+  .card{background:var(--panel);padding:12px;border-radius:10px;margin-bottom:12px}
+  h2{margin:0 0 6px 0}
+  .muted{color:var(--muted)}
+  .btn{padding:8px 10px;border-radius:8px;border:0;background:linear-gradient(90deg,var(--accent),#087f7f);color:#022;font-weight:700;cursor:pointer}
+  .btn.warn{background:#b91c1c;color:#fff}
+  .list{max-height:55vh;overflow:auto}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:8px;border-bottom:1px solid rgba(255,255,255,0.03)}
+  #map{height:100%}
+  .login {max-width:420px;margin:80px auto;padding:20px;background:var(--panel);border-radius:10px}
+</style>
+</head>
+<body>
+
+<div id="loginView" class="login" style="display:none">
+  <h3>Admin Login</h3>
+  <div class="muted">Enter credentials (default: admin / admin)</div>
+  <input id="adminUser" placeholder="Admin ID" style="width:100%;padding:10px;margin-top:10px;border-radius:8px;border:0;background:#051018;color:var(--text)">
+  <input id="adminPass" type="password" placeholder="Password" style="width:100%;padding:10px;margin-top:8px;border-radius:8px;border:0;background:#051018;color:var(--text)">
+  <div style="display:flex;gap:8px;margin-top:10px">
+    <button id="loginBtn" class="btn">Login</button>
+    <button id="toIndexBtn" class="btn" style="background:#0b1220;color:var(--muted)">Open User Site</button>
+  </div>
+</div>
+
+<div id="adminView" style="display:none;height:100%">
+  <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 16px;background:var(--panel)">
+    <div>
+      <h2 style="margin:0">Admin Console — Flood Map</h2>
+      <div class="muted">Approve reports · manage flooded roads · export/import · activity log</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <div id="pendingCount" class="muted"></div>
+      <button id="logoutBtn" class="btn warn">Logout</button>
+    </div>
+  </div>
+
+  <div class="wrap">
+    <div class="left">
+      <div class="card">
+        <div style="display:flex;gap:8px">
+          <input id="searchReports" placeholder="Search notes or time" style="flex:1;padding:8px;border-radius:8px;border:0;background:#051018;color:var(--text)">
+          <button id="bulkApprove" class="btn">Bulk Approve</button>
+        </div>
+      </div>
+
+      <div class="card list" id="reportsList">Loading reports...</div>
+
+      <div class="card">
+        <h4 style="margin-top:0">Activity log</h4>
+        <div id="activity" class="muted" style="max-height:140px;overflow:auto">No activity yet</div>
+      </div>
+
+      <div class="card">
+        <h4 style="margin-top:0">Export / Import</h4>
+        <div style="display:flex;gap:8px;margin-bottom:8px">
+          <button id="exportApprovedBtn" class="btn">Export Approved (JSON)</button>
+          <button id="exportAllBtn" class="btn">Export All</button>
+        </div>
+        <textarea id="importArea" placeholder='Paste JSON of roads to import (coords arrays)' style="width:100%;height:80px;background:#051018;color:var(--text);border-radius:8px;border:0;padding:8px"></textarea>
+        <div style="display:flex;gap:8px;margin-top:8px"><button id="importBtn" class="btn">Import as approved</button></div>
+      </div>
+    </div>
+
+    <div class="right card" style="padding:0">
+      <div id="map" style="height:100%"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+/* ====== STORAGE HELPERS ====== */
+function getReports(){ try{ return JSON.parse(localStorage.getItem('flood_reports')||'[]'); }catch(e){ return []; } }
+function saveReports(arr){ localStorage.setItem('flood_reports', JSON.stringify(arr)); window.dispatchEvent(new Event('storage')); }
+function addReportObj(r){ const a=getReports(); a.push(r); saveReports(a); }
+function updateReport(id, patch){ const a=getReports(); const i=a.findIndex(x=>x.id===id); if(i>=0){ a[i]=Object.assign({},a[i],patch); saveReports(a); } }
+function deleteReport(id){ const a=getReports().filter(x=>x.id!==id); saveReports(a); }
+function pushActivity(text){ const key='flood_activity'; let a=[]; try{ a=JSON.parse(localStorage.getItem(key)||'[]'); }catch(e){ a=[]; } a.unshift({ts:Date.now(), text}); if(a.length>500) a=a.slice(0,500); localStorage.setItem(key, JSON.stringify(a)); }
+
+/* ensure keys exist */
+if(!localStorage.getItem('flood_reports')) localStorage.setItem('flood_reports','[]');
+if(!localStorage.getItem('flood_activity')) localStorage.setItem('flood_activity','[]');
+
+/* ====== Admin auth (simple client-side default: admin/admin) ====== */
+const DEFAULT_USER='admin', DEFAULT_PASS='admin';
+function checkAdminCreds(u,p){ return (u===DEFAULT_USER && p===DEFAULT_PASS); }
+
+/* ====== Map init ====== */
+const map = L.map('map',{minZoom:11,maxZoom:18}).setView([8.5241,76.9366],13);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+/* layers */
+let pendingLayers=[], approvedLayers=[];
+
+/* UI elements */
+const loginView = document.getElementById('loginView');
+const adminView = document.getElementById('adminView');
+
+/* ====== login flow ====== */
+function showLogin(){ loginView.style.display='block'; adminView.style.display='none'; }
+function showAdmin(){ loginView.style.display='none'; adminView.style.display='block'; }
+
+document.getElementById('toIndexBtn').addEventListener('click', ()=>{ window.location.href = 'index.html'; });
+
+document.getElementById('loginBtn').addEventListener('click', ()=>{
+  const u=document.getElementById('adminUser').value.trim();
+  const p=document.getElementById('adminPass').value;
+  if(checkAdminCreds(u,p)){ localStorage.setItem('admin_logged','1'); pushActivity('Admin logged in'); renderAll(); showAdmin(); } else alert('Invalid credentials (default: admin / admin)');
+});
+
+document.getElementById('logoutBtn').addEventListener('click', ()=>{ localStorage.removeItem('admin_logged'); pushActivity('Admin logged out'); showLogin(); });
+
+/* If already logged in (localStorage flag), show admin */
+if(localStorage.getItem('admin_logged')){ showAdmin(); } else { showLogin(); }
+
+/* ====== render functions ====== */
+function clearLayers(arr){ arr.forEach(l=>{ try{ map.removeLayer(l);}catch(e){} }); arr.length=0; }
+
+function renderMapReports(){
+  clearLayers(pendingLayers); clearLayers(approvedLayers);
+  const reps = getReports();
+  const pending = reps.filter(r=> r.status==='pending');
+  const approved = reps.filter(r=> r.status==='approved');
+  // pending: orange dashed
+  pending.forEach(r=>{ const pl = L.polyline(r.coords,{color:'#f97316', weight:5, dashArray:'8,6'}).addTo(map); pl.bindPopup(`<b>Pending</b><br>${r.notes||''}<br><small>${new Date(r.ts).toLocaleString()}</small>`); pendingLayers.push(pl); });
+  // approved: red dashed
+  approved.forEach(r=>{ const pl = L.polyline(r.coords,{color:'#ef4444', weight:5, dashArray:'8,6'}).addTo(map); pl.bindPopup(`<b>Approved</b><br>${r.notes||''}<br><small>${new Date(r.ts).toLocaleString()}</small>`); approvedLayers.push(pl); });
+}
+
+function renderReportsList(){
+  const list = document.getElementById('reportsList'); list.innerHTML = '';
+  const q = document.getElementById('searchReports').value.trim().toLowerCase();
+  const reps = getReports().filter(r=> !r.status || r.status==='pending');
+  if(reps.length===0){ list.innerHTML = '<div class="muted">No pending reports</div>'; return; }
+  reps.forEach(r=>{
+    if(q && !(r.notes||'').toLowerCase().includes(q) && !new Date(r.ts).toLocaleString().toLowerCase().includes(q)) return;
+    const div = document.createElement('div'); div.style.padding='8px'; div.style.borderBottom='1px solid rgba(255,255,255,0.03)';
+    div.innerHTML = `<div style="display:flex;gap:8px;align-items:center"><input type="checkbox" class="rep-chk" value="${r.id}"><div style="flex:1"><b>Report</b><div class="muted" style="font-size:12px">${new Date(r.ts).toLocaleString()}</div><div style="margin-top:6px"><i>${r.notes||''}</i></div></div></div>`;
+    const btns = document.createElement('div'); btns.style.marginTop='8px';
+    const preview = document.createElement('button'); preview.className='btn'; preview.innerText='Preview'; preview.onclick = ()=>{ if(window._preview) try{ map.removeLayer(window._preview);}catch(e){} window._preview = L.polyline(r.coords,{color:'#f97316',weight:6,dashArray:'6,6'}).addTo(map); map.fitBounds(window._preview.getBounds(),{padding:[60,60]}); }; btns.appendChild(preview);
+    const approve = document.createElement('button'); approve.className='btn'; approve.style.marginLeft='8px'; approve.innerText='Approve'; approve.onclick = async ()=>{ updateReport(r.id, { status:'approved' }); renderAll(); pushActivity(`Approved ${r.id}`); alert('Approved'); }; btns.appendChild(approve);
+    const del = document.createElement('button'); del.className='btn warn'; del.style.marginLeft='8px'; del.innerText='Delete'; del.onclick = async ()=>{ if(!confirm('Delete this report?')) return; deleteReport(r.id); renderAll(); pushActivity(`Deleted ${r.id}`); alert('Deleted'); }; btns.appendChild(del);
+    div.appendChild(btns);
+    list.appendChild(div);
+  });
+  document.getElementById('pendingCount').innerText = `Pending: ${ (getReports().filter(r=> !r.status || r.status==='pending').length) }`;
+}
+
+/* render activity */
+function renderActivity(){
+  const a = JSON.parse(localStorage.getItem('flood_activity')||'[]'); const el = document.getElementById('activity'); el.innerHTML=''; if(a.length===0){ el.innerHTML='<div class="muted">No activity</div>'; return; } a.slice(0,200).forEach(it=>{ const d = document.createElement('div'); d.style.padding='6px'; d.style.borderBottom='1px solid rgba(255,255,255,0.03)'; d.innerHTML = `<div class="muted" style="font-size:12px">${new Date(it.ts).toLocaleString()}</div><div>${it.text}</div>`; el.appendChild(d); }); }
+
+/* render everything */
+function renderAll(){ renderMapReports(); renderReportsList(); renderActivity(); }
+
+/* listen to storage events (sync) */
+window.addEventListener('storage', ()=>{ renderAll(); });
+
+/* wire search */
+document.getElementById('searchReports').addEventListener('input', ()=> renderReportsList());
+
+/* bulk approve */
+document.getElementById('bulkApprove').addEventListener('click', async ()=>{
+  const chks = Array.from(document.querySelectorAll('.rep-chk:checked')).map(c=>c.value);
+  if(chks.length===0){ alert('Select reports'); return; }
+  if(!confirm(`Approve ${chks.length} reports?`)) return;
+  for(const id of chks){ updateReport(id, { status:'approved' }); pushActivity(`Bulk approved ${id}`); }
+  renderAll();
+});
+
+/* export / import */
+document.getElementById('exportApprovedBtn').addEventListener('click', ()=>{
+  const arr = getReports().filter(r=> r.status==='approved');
+  const blob = new Blob([JSON.stringify(arr,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download='approved_roads.json'; a.click(); URL.revokeObjectURL(url);
+});
+document.getElementById('exportAllBtn').addEventListener('click', ()=>{
+  const arr = getReports();
+  const blob = new Blob([JSON.stringify(arr,null,2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download='all_reports.json'; a.click(); URL.revokeObjectURL(url);
+});
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  const txt = document.getElementById('importArea').value.trim();
+  if(!txt) return alert('Paste JSON to import');
+  try{
+    const arr = JSON.parse(txt);
+    if(!Array.isArray(arr)) return alert('Invalid JSON');
+    for(const r of arr){ if(r.coords) addReportObj(Object.assign({ id:'r-'+Math.random().toString(36).slice(2,9), status:'approved', ts: Date.now() }, r)); }
+    renderAll(); pushActivity('Imported roads via admin');
+    alert('Imported successfully');
+  }catch(e){ alert('Import error: '+e.message); }
+});
+
+/* initial render on load if admin logged in */
+if(localStorage.getItem('admin_logged')){ renderAll(); } else {
+  // if the login was just performed, listen for the flag and render
+}
+</script>
+</body>
+</html>
